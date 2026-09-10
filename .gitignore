@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# OS and system files
+.DS_Store
+Thumbs.db
+
+# Python & virtual environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# SQLite Databases & temporary files
+*.db
+*.sqlite3
+scratch/
+*.log
+
+# Environment variables
+.env
+.env*.local
+!.env.example
+

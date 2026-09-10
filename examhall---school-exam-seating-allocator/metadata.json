@@ -1,0 +1,6 @@
+{
+  "name": "ExamHall - School Exam Seating Allocator",
+  "description": "Intelligent, responsive exam room allocation and anti-cheating mixed seating planner for schools and colleges.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

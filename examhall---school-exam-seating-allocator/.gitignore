@@ -1,0 +1,18 @@
+node_modules/
+build/
+# dist/ (included so frontend runs out of the box without bun/node)
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Python & Backend
+venv/
+__pycache__/
+*.pyc
+*.db
+backend/school_database.db
+
+# Temp folders
+scratch/
