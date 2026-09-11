@@ -10,8 +10,12 @@ import {
   Menu, 
   X,
   RefreshCw,
-  Home
+  Home,
+  Mail,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
+import { GoogleUser } from '../utils/googleAuth';
 
 type ActiveTab = 'home' | 'plan' | 'rooms' | 'data' | 'print' | 'calendar' | 'monitoring';
 
@@ -23,6 +27,11 @@ interface HeaderProps {
   onGeneratePlan: () => void;
   isAllocating: boolean;
   totalStudentsSeated: number;
+  // Google Auth & Email
+  currentUser: GoogleUser | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  onOpenEmailModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,9 +41,14 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onGeneratePlan,
   isAllocating,
-  totalStudentsSeated
+  totalStudentsSeated,
+  currentUser,
+  onSignIn,
+  onSignOut,
+  onOpenEmailModal
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-[#E2E8F0]">
@@ -140,6 +154,79 @@ export const Header: React.FC<HeaderProps> = ({
               )}
               <span>Auto Allocate</span>
             </button>
+
+            {/* Email Class Sheets Quick Trigger */}
+            <button
+              id="btn-email-class-sheets"
+              onClick={onOpenEmailModal}
+              title="Email Class Excel Spreadsheets to Teachers"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] transition-colors cursor-pointer"
+            >
+              <Mail className="w-4 h-4 text-[#2563EB]" />
+              <span className="hidden lg:inline">Email Sheets</span>
+            </button>
+
+            {/* Google Sign In / User Profile in the Corner */}
+            <div className="relative">
+              {currentUser ? (
+                <div>
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] transition-colors cursor-pointer shadow-2xs"
+                  >
+                    {currentUser.picture ? (
+                      <img src={currentUser.picture} alt={currentUser.name} className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-[10px] font-bold">
+                        {currentUser.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-[#0F172A] max-w-[100px] truncate hidden sm:inline">
+                      {currentUser.name}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
+                  </button>
+
+                  {userMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-[#E2E8F0] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-4 py-2 border-b border-[#F1F5F9]">
+                        <div className="text-xs font-bold text-[#0F172A] truncate">{currentUser.name}</div>
+                        <div className="text-[11px] text-[#64748B] truncate">{currentUser.email}</div>
+                      </div>
+
+                      <div className="py-1">
+                        <button
+                          onClick={() => { onOpenEmailModal(); setUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-2 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FAFC] flex items-center gap-2 cursor-pointer"
+                        >
+                          <Mail className="w-4 h-4 text-[#2563EB]" />
+                          <span>Email Class Spreadsheets</span>
+                        </button>
+                      </div>
+
+                      <div className="pt-1 border-t border-[#F1F5F9]">
+                        <button
+                          onClick={() => { onSignOut(); setUserMenuOpen(false); }}
+                          className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                        >
+                          <LogOut className="w-4 h-4 text-red-500" />
+                          <span>Sign out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={onSignIn}
+                  title="Sign in with Google"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-[#0F172A] bg-white hover:bg-[#F8FAFC] border border-[#CBD5E1] shadow-2xs transition-all cursor-pointer"
+                >
+                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
+                  <span className="hidden sm:inline">Sign in</span>
+                </button>
+              )}
+            </div>
 
             {/* Mobile Hamburger Toggle */}
             <button

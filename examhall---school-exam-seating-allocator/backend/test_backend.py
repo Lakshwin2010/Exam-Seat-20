@@ -133,5 +133,30 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertGreaterEqual(dash["totalFlagged"], 1)  # student was flagged by high severity incident
         print(f"[OK] Dashboard stats: {dash['attendanceRate']}% attendance, {dash['totalFlagged']} flagged, {len(dash['recentIncidents'])} incidents")
 
+    def test_08_email_router(self):
+        # 1. Test recipients endpoint
+        rec_res = self.client.get("/api/email/recipients")
+        self.assertEqual(rec_res.status_code, 200)
+        rec_data = rec_res.json()
+        self.assertEqual(rec_data["totalSections"], 8)
+        
+        # Verify XI-A and XI-B pre-configured emails
+        sections_map = {s["section"]: s for s in rec_data["sections"]}
+        self.assertEqual(sections_map["XI - A"]["email"], "erd_s1401728@csacademy.in")
+        self.assertEqual(sections_map["XI - B"]["email"], "erd_s1803155@csacademy.in")
+        self.assertEqual(sections_map["XI - A"]["studentCount"], 30)
+        self.assertEqual(sections_map["XI - B"]["studentCount"], 33)
+        print("[OK] Email recipients verified (8 sections, XI-A & XI-B configured)")
+
+        # 2. Test class sheet generation for XI-A
+        sheet_res = self.client.get("/api/email/class-sheet/XI%20-%20A")
+        self.assertEqual(sheet_res.status_code, 200)
+        sheet_data = sheet_res.json()
+        self.assertEqual(sheet_data["studentCount"], 30)
+        self.assertTrue(sheet_data["filename"].endswith(".xlsx"))
+        self.assertTrue(len(sheet_data["base64"]) > 500)
+        print(f"[OK] Class sheet generated: {sheet_data['filename']} ({sheet_data['sizeBytes']} bytes, base64 payload verified)")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

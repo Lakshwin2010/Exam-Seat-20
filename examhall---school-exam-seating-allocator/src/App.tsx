@@ -30,6 +30,8 @@ import { AllocationSettingsModal } from './components/AllocationSettingsModal';
 import { StudentMonitoringView } from './components/StudentMonitoringView';
 import { ExamCalendarView } from './components/ExamCalendarView';
 import { LandingPageView } from './components/LandingPageView';
+import { EmailClassSheetsModal } from './components/EmailClassSheetsModal';
+import { GoogleUser, getStoredUser, signInWithGoogle, signOutGoogle } from './utils/googleAuth';
 import { api } from './utils/api';
 import { Sparkles, Layers, Building2, Users, BookOpen, Plus, UploadCloud, RefreshCw, FileSpreadsheet, Database, Calendar, Clock, Home } from 'lucide-react';
 
@@ -124,6 +126,8 @@ export default function App() {
   const [isAllocating, setIsAllocating] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => getStoredUser());
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
 
   // Backend & Source Folder Sync State
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
@@ -394,6 +398,16 @@ export default function App() {
         onGeneratePlan={() => handleGeneratePlan(false)}
         isAllocating={isAllocating}
         totalStudentsSeated={currentPlan?.stats.totalAssigned || 0}
+        currentUser={currentUser}
+        onSignIn={() => signInWithGoogle(
+          (user) => setCurrentUser(user),
+          (err) => alert(err)
+        )}
+        onSignOut={() => {
+          signOutGoogle();
+          setCurrentUser(null);
+        }}
+        onOpenEmailModal={() => setIsEmailModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -582,6 +596,7 @@ export default function App() {
               sessions={sessions}
               setSessions={setSessions}
               onResetToSampleData={handleResetToSampleData}
+              onOpenEmailModal={() => setIsEmailModalOpen(true)}
             />
           </div>
         )}
@@ -631,6 +646,14 @@ export default function App() {
         options={allocationOptions}
         onChangeOptions={setAllocationOptions}
         onApplyAndRegenerate={() => handleGeneratePlan(false)}
+      />
+
+      {/* Class Excel Spreadsheets Email Distribution Modal */}
+      <EmailClassSheetsModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        currentUser={currentUser}
+        onSignInSuccess={(user) => setCurrentUser(user)}
       />
 
       <div className="md:hidden sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t border-[#E2E8F0] p-2.5 flex items-center justify-around gap-2 no-print">

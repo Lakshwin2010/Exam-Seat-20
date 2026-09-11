@@ -17,7 +17,8 @@ import {
   Clock,
   Sparkles,
   Search,
-  GraduationCap
+  GraduationCap,
+  Mail
 } from 'lucide-react';
 import { ExamRoom, Student, ExamSubject, ExamSession } from '../types';
 import { 
@@ -42,6 +43,7 @@ interface DataManagementProps {
   initialSubTab?: 'rooms' | 'students' | 'subjects' | 'import_export';
   onSyncFolder?: () => Promise<void>;
   isSyncingFolder?: boolean;
+  onOpenEmailModal?: () => void;
 }
 
 export const DataManagement: React.FC<DataManagementProps> = ({
@@ -53,9 +55,10 @@ export const DataManagement: React.FC<DataManagementProps> = ({
   setSubjects,
   sessions,
   setSessions,
-  initialSubTab,
+  initialSubTab = 'students',
   onSyncFolder,
-  isSyncingFolder
+  isSyncingFolder,
+  onOpenEmailModal
 }) => {
   const [subTab, setSubTab] = useState<'rooms' | 'students' | 'subjects' | 'import_export'>(initialSubTab || 'rooms');
 
@@ -512,16 +515,27 @@ export const DataManagement: React.FC<DataManagementProps> = ({
                   Total Students: <strong className="text-[#0F172A]">{students.length}</strong> • Class 11: <strong className="text-[#2563EB]">{xiStudents.length}</strong> • Class 12: <strong className="text-indigo-600">{xiiStudents.length}</strong>
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingStudent(null);
-                  setStudentModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[#F8FAFC] bg-[#2563EB] hover:bg-[#1D4ED8] transition-all shadow-2xs cursor-pointer self-start sm:self-auto"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Student</span>
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {onOpenEmailModal && (
+                  <button
+                    onClick={onOpenEmailModal}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[#2563EB] bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all shadow-2xs cursor-pointer"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Email Class Sheets</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditingStudent(null);
+                    setStudentModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[#F8FAFC] bg-[#2563EB] hover:bg-[#1D4ED8] transition-all shadow-2xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Student</span>
+                </button>
+              </div>
             </div>
 
             {/* SEPARATE 11th AND 12th STUDENTS - Summary Cards */}
