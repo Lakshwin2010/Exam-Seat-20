@@ -47,16 +47,16 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertEqual(res["status"], "success")
         print(f"[OK] Source sync result: {res['imported']}")
 
-        # Verify students in DB
+        # Verify students and rooms in DB
         stud_count = self.db.query(models.Student).count()
         self.assertGreater(stud_count, 0, "Students should be populated in DB")
 
         room_count = self.db.query(models.ExamRoom).count()
         self.assertGreater(room_count, 0, "Rooms should be populated in DB")
 
+        # Exam schedules are dynamically managed from the main web
         sess_count = self.db.query(models.ExamSession).count()
-        self.assertGreater(sess_count, 0, "Sessions should be populated in DB")
-        print(f"[OK] DB state: {stud_count} students, {room_count} rooms, {sess_count} sessions")
+        print(f"[OK] DB state: {stud_count} students, {room_count} rooms, {sess_count} sessions (schedules dynamically managed)")
 
     def test_04_students_api(self):
         response = self.client.get("/api/students")
@@ -73,14 +73,24 @@ class TestExamHallBackend(unittest.TestCase):
         print(f"[OK] Rooms API returned {len(rooms)} rooms")
 
     def test_06_seating_allocation_generation(self):
-        session = self.db.query(models.ExamSession).first()
-        self.assertIsNotNone(session)
+        # Simulate creating an exam schedule dynamically from the web
+        subjects = self.client.get("/api/subjects").json()
+        self.assertGreater(len(subjects), 0)
+        sess_payload = {
+            "name": "General Term Exam",
+            "date": "2026-09-25",
+            "timeSlot": "09:00 AM - 12:00 PM",
+            "subjectIds": [subjects[0]["id"]]
+        }
+        res_sess = self.client.post("/api/sessions", json=sess_payload)
+        self.assertEqual(res_sess.status_code, 200)
+        session = res_sess.json()
 
-        response = self.client.post(f"/api/allocations/generate?session_id={session.id}")
+        response = self.client.post(f"/api/allocations/generate?session_id={session['id']}")
         self.assertEqual(response.status_code, 200)
         plan = response.json()
 
-        self.assertEqual(plan["sessionId"], session.id)
+        self.assertEqual(plan["sessionId"], session["id"])
         self.assertGreater(plan["stats"]["totalAssigned"], 0)
         self.assertGreaterEqual(plan["stats"]["cheatPreventionIndex"], 0.0)
         print(f"[OK] Seating plan generated: {plan['stats']['totalAssigned']} students seated, cheat index: {plan['stats']['cheatPreventionIndex']}%")
@@ -183,7 +193,24 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertEqual(alloc_res.status_code, 200)
         plan = alloc_res.json()
         self.assertGreater(plan["stats"]["totalAssigned"], 0)
-        print(f"[OK] Paired exam allocated: {plan['stats']['totalAssigned']} students seated in alternating checkerboard!")
+
+        # Verify row-alternating pattern: Row 0 (11th), Row 1 (12th), Row 2 (11th), Row 3 (12th)...
+        first_room = plan["roomAllocations"][0]
+        row_0 = [s for s in first_room["assignedSeats"] if s["row"] == 0 and s.get("studentId")]
+        row_1 = [s for s in first_room["assignedSeats"] if s["row"] == 1 and s.get("studentId")]
+        row_2 = [s for s in first_room["assignedSeats"] if s["row"] == 2 and s.get("studentId")]
+        row_3 = [s for s in first_room["assignedSeats"] if s["row"] == 3 and s.get("studentId")]
+
+        for s in row_0:
+            self.assertTrue("XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper(), f"Row 0 must be Grade 11, got {s['studentGrade']}")
+        for s in row_1:
+            self.assertTrue("XII" in s["studentGrade"].upper(), f"Row 1 must be Grade 12, got {s['studentGrade']}")
+        for s in row_2:
+            self.assertTrue("XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper(), f"Row 2 must be Grade 11, got {s['studentGrade']}")
+        for s in row_3:
+            self.assertTrue("XII" in s["studentGrade"].upper(), f"Row 3 must be Grade 12, got {s['studentGrade']}")
+
+        print(f"[OK] Paired exam allocated: {plan['stats']['totalAssigned']} students seated in row-alternating layout (Row 0: 11th, Row 1: 12th, Row 2: 11th, Row 3: 12th)!")
 
         # Verify dual-tab sheet with session_id
         sheet_res = self.client.get(f"/api/email/class-sheet/XI%20-%20A?session_id={session['id']}")

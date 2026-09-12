@@ -61,6 +61,12 @@ def create_session(data: schemas.ExamSessionCreate, db: Session = Depends(get_db
         subs = db.query(models.Subject).filter(models.Subject.id.in_(all_subject_ids)).all()
         new_sess.subjects = subs
 
+    # Clear any existing association or allocation records for this session_id if reusing ID
+    db.execute(models.session_subject_assoc.delete().where(models.session_subject_assoc.c.session_id == sess_id))
+    db.query(models.SeatAllocation).filter(models.SeatAllocation.session_id == sess_id).delete()
+    db.query(models.StudentMonitoring).filter(models.StudentMonitoring.session_id == sess_id).delete()
+    db.query(models.MonitoringIncident).filter(models.MonitoringIncident.session_id == sess_id).delete()
+
     db.add(new_sess)
     db.commit()
     db.refresh(new_sess)
@@ -117,6 +123,21 @@ def delete_session(session_id: str, db: Session = Depends(get_db)):
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    db.execute(models.session_subject_assoc.delete().where(models.session_subject_assoc.c.session_id == session_id))
+    db.query(models.MonitoringIncident).filter(models.MonitoringIncident.session_id == session_id).delete()
+    db.query(models.StudentMonitoring).filter(models.StudentMonitoring.session_id == session_id).delete()
+    db.query(models.SeatAllocation).filter(models.SeatAllocation.session_id == session_id).delete()
     db.delete(sess)
     db.commit()
     return {"status": "success", "message": f"Session {session_id} deleted."}
+
+@router.delete("")
+def delete_all_sessions(db: Session = Depends(get_db)):
+    """Deletes all exam sessions and their associated allocations and records."""
+    db.execute(models.session_subject_assoc.delete())
+    db.query(models.MonitoringIncident).delete()
+    db.query(models.StudentMonitoring).delete()
+    db.query(models.SeatAllocation).delete()
+    deleted = db.query(models.ExamSession).delete()
+    db.commit()
+    return {"status": "success", "deleted": deleted}

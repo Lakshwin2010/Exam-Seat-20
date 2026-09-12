@@ -233,29 +233,45 @@ export function runSeatingAllocation(
     const additionalLeftovers: StudentToSeat[] = [];
 
     if (hasXI && hasXII) {
-      // User requirement: Mix Grade 11 and Grade 12 in 50/50 proportion (e.g. 15 and 15 for 30 capacity)
-      const halfCapacity = Math.floor(capacity / 2);
-      const targetA = halfCapacity;
-      const targetB = capacity - targetA;
-
-      // Fill takenA from XI pools
-      for (const p of pools) {
-        if (isXI(p.grade) && p.list.length > 0) {
-          const need = targetA - takenA.length;
-          if (need <= 0) break;
-          const take = Math.min(need, p.list.length);
-          takenA.push(...p.list.splice(0, take));
+      // Row-alternating arrangement: 11th in one row (Row 0, 2, 4...), 12th in next (Row 1, 3, 5...), 11th again
+      let evenRowSeats = 0;
+      let oddRowSeats = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (r * cols + c < capacity) {
+            if (r % 2 === 0) evenRowSeats++;
+            else oddRowSeats++;
+          }
         }
       }
 
-      // Fill takenB from XII pools
-      for (const p of pools) {
-        if (isXII(p.grade) && p.list.length > 0) {
-          const need = targetB - takenB.length;
-          if (need <= 0) break;
-          const take = Math.min(need, p.list.length);
-          takenB.push(...p.list.splice(0, take));
+      const targetA = (options.strategy === 'row_alternate' || !options.strategy) ? evenRowSeats : Math.floor(capacity / 2);
+      const targetB = capacity - targetA;
+
+      // Round-robin / interleave sections across XI pools
+      const xiPools = pools.filter(p => isXI(p.grade) && p.list.length > 0);
+      while (takenA.length < targetA && xiPools.length > 0) {
+        let addedAny = false;
+        for (const p of xiPools) {
+          if (takenA.length < targetA && p.list.length > 0) {
+            takenA.push(p.list.shift()!);
+            addedAny = true;
+          }
         }
+        if (!addedAny) break;
+      }
+
+      // Round-robin / interleave sections across XII pools
+      const xiiPools = pools.filter(p => isXII(p.grade) && p.list.length > 0);
+      while (takenB.length < targetB && xiiPools.length > 0) {
+        let addedAny = false;
+        for (const p of xiiPools) {
+          if (takenB.length < targetB && p.list.length > 0) {
+            takenB.push(p.list.shift()!);
+            addedAny = true;
+          }
+        }
+        if (!addedAny) break;
       }
 
       // Leftovers if either grade ran out
@@ -384,6 +400,10 @@ export function runSeatingAllocation(
       }
     }
 
+    // Helpers to identify Grade 11 vs Grade 12
+    const isXI = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XI') && !grade.toUpperCase().includes('XII'));
+    const isXII = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XII'));
+
     // Now assign regular candidates based on pattern
     if (options.strategy === 'column_alternate') {
       // Column by column assignment (Col 0: Group A, Col 1: Group B, Col 2: Group A...)
@@ -404,8 +424,37 @@ export function runSeatingAllocation(
           }
         }
       }
+    } else if (options.strategy === 'row_alternate' || !options.strategy) {
+      // Row by row assignment: 11th in one row (Row 0, 2, 4...), 12th in next (Row 1, 3, 5...), 11th again
+      const regA = regularCandidates.filter(c => isXI(c.student.grade));
+      const regB = regularCandidates.filter(c => isXII(c.student.grade));
+      const otherCands = regularCandidates.filter(c => !isXI(c.student.grade) && !isXII(c.student.grade));
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const seat = assignedSeats.find(s => s.row === r && s.col === c);
+          if (seat && !seat.studentId) {
+            let cand: StudentToSeat | undefined;
+            if (r % 2 === 0) {
+              cand = regA.shift() || regB.shift() || otherCands.shift();
+            } else {
+              cand = regB.shift() || regA.shift() || otherCands.shift();
+            }
+            if (cand) {
+              seat.studentId = cand.student.id;
+              seat.studentRollNo = cand.student.rollNo;
+              seat.studentName = cand.student.name;
+              seat.studentGrade = cand.student.grade;
+              seat.subjectCode = cand.subject.code;
+              seat.subjectName = cand.subject.name;
+              seat.subjectColor = cand.subject.color;
+              seat.isSpecialNeeds = cand.student.specialNeeds;
+            }
+          }
+        }
+      }
     } else {
-      // Checkerboard or sequential alternate
+      // Sequential or fallback alternate
       let candIdx = 0;
       for (const seat of assignedSeats) {
         if (!seat.studentId && candIdx < regularCandidates.length) {

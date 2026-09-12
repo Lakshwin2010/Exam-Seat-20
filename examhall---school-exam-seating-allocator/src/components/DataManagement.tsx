@@ -93,7 +93,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({
   const [studentSearch, setStudentSearch] = useState<string>('');
 
   // --- ROOM HANDLERS ---
-  const handleSaveRoom = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveRoom = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const capacity = parseInt(formData.get('capacity') as string, 10) || 30;
@@ -115,19 +115,22 @@ export const DataManagement: React.FC<DataManagementProps> = ({
 
     if (editingRoom) {
       setRooms(rooms.map(r => r.id === editingRoom.id ? roomData : r));
+      try { await api.updateRoom(editingRoom.id, roomData); } catch (err) { console.warn("Backend room update fallback:", err); }
     } else {
       setRooms([...rooms, roomData]);
+      try { const saved = await api.createRoom(roomData); if (saved?.id) roomData.id = saved.id; } catch (err) { console.warn("Backend room create fallback:", err); }
     }
     setRoomModalOpen(false);
     setEditingRoom(null);
   };
 
-  const handleDeleteRoom = (id: string) => {
+  const handleDeleteRoom = async (id: string) => {
     setRooms(rooms.filter(r => r.id !== id));
+    try { await api.deleteRoom(id); } catch (err) { console.warn("Backend room delete error:", err); }
   };
 
   // --- STUDENT HANDLERS ---
-  const handleSaveStudent = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveStudent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const selectedSubIds = subjects
@@ -146,19 +149,22 @@ export const DataManagement: React.FC<DataManagementProps> = ({
 
     if (editingStudent) {
       setStudents(students.map(s => s.id === editingStudent.id ? studentData : s));
+      try { await api.updateStudent(editingStudent.id, studentData); } catch (err) { console.warn("Backend student update fallback:", err); }
     } else {
       setStudents([...students, studentData]);
+      try { const saved = await api.createStudent(studentData); if (saved?.id) studentData.id = saved.id; } catch (err) { console.warn("Backend student create fallback:", err); }
     }
     setStudentModalOpen(false);
     setEditingStudent(null);
   };
 
-  const handleDeleteStudent = (id: string) => {
+  const handleDeleteStudent = async (id: string) => {
     setStudents(students.filter(s => s.id !== id));
+    try { await api.deleteStudent(id); } catch (err) { console.warn("Backend student delete error:", err); }
   };
 
   // --- SUBJECT HANDLERS ---
-  const handleSaveSubject = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveSubject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const subjectData: ExamSubject = {
@@ -171,19 +177,22 @@ export const DataManagement: React.FC<DataManagementProps> = ({
 
     if (editingSubject) {
       setSubjects(subjects.map(s => s.id === editingSubject.id ? subjectData : s));
+      try { await api.updateSubject(editingSubject.id, subjectData); } catch (err) { console.warn("Backend subject update fallback:", err); }
     } else {
       setSubjects([...subjects, subjectData]);
+      try { const saved = await api.createSubject(subjectData); if (saved?.id) subjectData.id = saved.id; } catch (err) { console.warn("Backend subject create fallback:", err); }
     }
     setSubjectModalOpen(false);
     setEditingSubject(null);
   };
 
-  const handleDeleteSubject = (id: string) => {
+  const handleDeleteSubject = async (id: string) => {
     setSubjects(subjects.filter(s => s.id !== id));
+    try { await api.deleteSubject(id); } catch (err) { console.warn("Backend subject delete error:", err); }
   };
 
   // --- SESSION HANDLERS ---
-  const handleSaveSession = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveSession = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const selectedSubIds = subjects
@@ -200,24 +209,28 @@ export const DataManagement: React.FC<DataManagementProps> = ({
 
     if (editingSession) {
       setSessions(sessions.map(s => s.id === editingSession.id ? sessionData : s));
+      try { await api.updateSession(editingSession.id, sessionData); } catch (err) { console.warn("Backend session update fallback:", err); }
     } else {
       setSessions([...sessions, sessionData]);
+      try { const saved = await api.createSession(sessionData); if (saved?.id) sessionData.id = saved.id; } catch (err) { console.warn("Backend session create fallback:", err); }
     }
     setSessionModalOpen(false);
     setEditingSession(null);
   };
 
-  const handleDeleteSession = (id: string) => {
+  const handleDeleteSession = async (id: string) => {
     setSessions(sessions.filter(s => s.id !== id));
+    try { await api.deleteSession(id); } catch (err) { console.warn("Backend session delete error:", err); }
   };
 
   // --- CLEAR ALL DATA ---
-  const handleClearAllData = () => {
+  const handleClearAllData = async () => {
     if (window.confirm('Are you sure you want to clear all data? This will remove all classrooms, students, subjects, and sessions.')) {
       setRooms([]);
       setStudents([]);
       setSubjects([]);
       setSessions([]);
+      try { await api.deleteAllSessions(); } catch {}
       setImportStatus({ type: 'success', message: 'All current data has been cleared.' });
     }
   };

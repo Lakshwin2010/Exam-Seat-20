@@ -149,10 +149,15 @@ export default function App() {
           if (bRooms) setRooms(bRooms);
           if (bStudents) setStudents(bStudents);
           if (bSubjects) setSubjects(bSubjects);
-          if (bSessions) {
+          if (Array.isArray(bSessions)) {
             setSessions(bSessions);
-            if (bSessions.length > 0 && (!selectedSessionId || !bSessions.some(s => s.id === selectedSessionId))) {
-              setSelectedSessionId(bSessions[0].id);
+            if (bSessions.length > 0) {
+              if (!selectedSessionId || !bSessions.some(s => s.id === selectedSessionId)) {
+                setSelectedSessionId(bSessions[0].id);
+              }
+            } else {
+              setSelectedSessionId('');
+              localStorage.removeItem(STORAGE_KEYS.SESSIONS);
             }
           }
         } catch (e) {
@@ -176,9 +181,14 @@ export default function App() {
       if (bRooms) setRooms(bRooms);
       if (bStudents) setStudents(bStudents);
       if (bSubjects) setSubjects(bSubjects);
-      if (bSessions) {
+      if (Array.isArray(bSessions)) {
         setSessions(bSessions);
-        if (bSessions.length > 0) setSelectedSessionId(bSessions[0].id);
+        if (bSessions.length > 0) {
+          setSelectedSessionId(bSessions[0].id);
+        } else {
+          setSelectedSessionId('');
+          localStorage.removeItem(STORAGE_KEYS.SESSIONS);
+        }
       }
       setSyncStatusBanner({
         type: 'success',

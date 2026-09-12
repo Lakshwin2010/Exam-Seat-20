@@ -130,6 +130,130 @@ export const api = {
     return res.json();
   },
 
+  async createSession(session: Partial<ExamSession>): Promise<ExamSession> {
+    const res = await fetch(`${API_BASE}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(session)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to create session' }));
+      throw new Error(err.detail || 'Failed to create session');
+    }
+    return res.json();
+  },
+
+  async updateSession(sessionId: string, session: Partial<ExamSession>): Promise<ExamSession> {
+    const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(session)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to update session' }));
+      throw new Error(err.detail || 'Failed to update session');
+    }
+    return res.json();
+  },
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete session');
+  },
+
+  async deleteAllSessions(): Promise<void> {
+    const res = await fetch(`${API_BASE}/sessions`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete all sessions');
+  },
+
+  // Room CRUD
+  async createRoom(room: Partial<ExamRoom>): Promise<ExamRoom> {
+    const res = await fetch(`${API_BASE}/rooms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(room)
+    });
+    if (!res.ok) throw new Error('Failed to create room');
+    return res.json();
+  },
+
+  async updateRoom(roomId: string, room: Partial<ExamRoom>): Promise<ExamRoom> {
+    const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(roomId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(room)
+    });
+    if (!res.ok) throw new Error('Failed to update room');
+    return res.json();
+  },
+
+  async deleteRoom(roomId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/rooms/${encodeURIComponent(roomId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete room');
+  },
+
+  // Student CRUD
+  async createStudent(student: Partial<Student>): Promise<Student> {
+    const res = await fetch(`${API_BASE}/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(student)
+    });
+    if (!res.ok) throw new Error('Failed to create student');
+    return res.json();
+  },
+
+  async updateStudent(studentId: string, student: Partial<Student>): Promise<Student> {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(student)
+    });
+    if (!res.ok) throw new Error('Failed to update student');
+    return res.json();
+  },
+
+  async deleteStudent(studentId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete student');
+  },
+
+  // Subject CRUD
+  async createSubject(subject: Partial<ExamSubject>): Promise<ExamSubject> {
+    const res = await fetch(`${API_BASE}/subjects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subject)
+    });
+    if (!res.ok) throw new Error('Failed to create subject');
+    return res.json();
+  },
+
+  async updateSubject(subjectId: string, subject: Partial<ExamSubject>): Promise<ExamSubject> {
+    const res = await fetch(`${API_BASE}/subjects/${encodeURIComponent(subjectId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subject)
+    });
+    if (!res.ok) throw new Error('Failed to update subject');
+    return res.json();
+  },
+
+  async deleteSubject(subjectId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/subjects/${encodeURIComponent(subjectId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete subject');
+  },
+
   async generatePlan(sessionId: string, options: AllocationOptions): Promise<SeatingPlan> {
     const res = await fetch(`${API_BASE}/allocations/generate?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'POST',

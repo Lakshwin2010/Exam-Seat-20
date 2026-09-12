@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { ExamSession, ExamSubject } from '../types';
+import { api } from '../utils/api';
 
 interface ExamCalendarViewProps {
   sessions: ExamSession[];
@@ -104,8 +105,10 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
   const handleDeleteSession = async (id: string) => {
     setSessions(prev => prev.filter(s => s.id !== id));
     try {
-      await fetch(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    } catch {}
+      await api.deleteSession(id);
+    } catch (err) {
+      console.warn("Backend session delete error:", err);
+    }
   };
 
   const handleSelectAndGo = (id: string) => {
@@ -131,23 +134,18 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
       grade12SubjectIds: g12
     };
 
-    // Save to backend if accessible
+    // Save to backend automatically
     try {
-      const res = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: newSession.id,
-          name: newSession.name,
-          date: newSession.date,
-          timeSlot: newSession.timeSlot,
-          subjectIds: newSession.subjectIds,
-          grade11SubjectIds: newSession.grade11SubjectIds,
-          grade12SubjectIds: newSession.grade12SubjectIds
-        })
+      const saved = await api.createSession({
+        id: newSession.id,
+        name: newSession.name,
+        date: newSession.date,
+        timeSlot: newSession.timeSlot,
+        subjectIds: newSession.subjectIds,
+        grade11SubjectIds: newSession.grade11SubjectIds,
+        grade12SubjectIds: newSession.grade12SubjectIds
       });
-      if (res.ok) {
-        const saved = await res.json();
+      if (saved && saved.id) {
         newSession.id = saved.id;
       }
     } catch (err) {

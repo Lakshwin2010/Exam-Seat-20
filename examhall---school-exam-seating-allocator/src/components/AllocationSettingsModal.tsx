@@ -21,11 +21,18 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
 
   const strategies: { id: SplitStrategy; title: string; desc: string; icon: React.ReactNode; badge: string }[] = [
     {
+      id: 'row_alternate',
+      title: 'Row-wise Alternating',
+      desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
+      icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
+      badge: 'Recommended'
+    },
+    {
       id: 'column_alternate',
       title: 'Column-wise Alternating',
-      desc: 'Assigns entire columns to alternating classes (e.g. Column 1: Grade 10, Column 2: Grade 12, Column 3: Grade 10...).',
+      desc: 'Assigns entire columns to alternating classes (e.g. Column 1: Grade 11, Column 2: Grade 12...).',
       icon: <Columns className="w-5 h-5 text-[#2563EB]" />,
-      badge: 'Easy Invigilation'
+      badge: 'Column Pattern'
     }
   ];
 

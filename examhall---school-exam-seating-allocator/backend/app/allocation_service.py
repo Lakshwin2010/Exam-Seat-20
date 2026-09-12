@@ -160,34 +160,41 @@ class AllocationEngine:
             has_xi = any(is_xi(p["grade"]) for p in available_pools)
             has_xii = any(is_xii(p["grade"]) for p in available_pools)
 
-            half_cap = math.ceil(capacity / 2)
+            # Count seats in even rows (0, 2, 4...) and odd rows (1, 3, 5...)
+            even_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 0))
+            odd_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 1))
+
             taken_a: List[Dict[str, Any]] = []
             taken_b: List[Dict[str, Any]] = []
 
             if has_xi and has_xii:
-                # 50/50 mixing of Grade 11 and Grade 12 per room (e.g. 15 XI and 15 XII)
-                target_a = half_cap
-                target_b = capacity - target_a
+                # Row-alternating arrangement: 11th in one row, 12th in next, 11th again
+                target_a = even_row_seats
+                target_b = odd_row_seats
 
-                # Fill taken_a from XI pools
-                for p in pools:
-                    if is_xi(p["grade"]) and p["list"]:
-                        need = target_a - len(taken_a)
-                        if need <= 0:
-                            break
-                        take = min(need, len(p["list"]))
-                        taken_a.extend(p["list"][:take])
-                        del p["list"][:take]
+                # Round-robin / interleave sections across XI pools for taken_a
+                xi_pools = [p for p in pools if is_xi(p["grade"]) and len(p["list"]) > 0]
+                while len(taken_a) < target_a and xi_pools:
+                    added_any = False
+                    for p in xi_pools:
+                        if len(taken_a) < target_a and p["list"]:
+                            taken_a.append(p["list"].pop(0))
+                            added_any = True
+                    xi_pools = [p for p in xi_pools if len(p["list"]) > 0]
+                    if not added_any:
+                        break
 
-                # Fill taken_b from XII pools
-                for p in pools:
-                    if is_xii(p["grade"]) and p["list"]:
-                        need = target_b - len(taken_b)
-                        if need <= 0:
-                            break
-                        take = min(need, len(p["list"]))
-                        taken_b.extend(p["list"][:take])
-                        del p["list"][:take]
+                # Round-robin / interleave sections across XII pools for taken_b
+                xii_pools = [p for p in pools if is_xii(p["grade"]) and len(p["list"]) > 0]
+                while len(taken_b) < target_b and xii_pools:
+                    added_any = False
+                    for p in xii_pools:
+                        if len(taken_b) < target_b and p["list"]:
+                            taken_b.append(p["list"].pop(0))
+                            added_any = True
+                    xii_pools = [p for p in xii_pools if len(p["list"]) > 0]
+                    if not added_any:
+                        break
 
                 # Leftovers if any slots remain unfilled
                 needed_more = capacity - (len(taken_a) + len(taken_b))
@@ -207,7 +214,7 @@ class AllocationEngine:
                 # Fallback to standard 2-pool split if only one grade is in this session
                 primary_pool = available_pools[0]
                 secondary_pool = available_pools[1] if len(available_pools) > 1 else None
-                primary_budget = min(half_cap, len(primary_pool["list"]))
+                primary_budget = min(even_row_seats, len(primary_pool["list"]))
                 secondary_budget = min(capacity - primary_budget, len(secondary_pool["list"])) if secondary_pool else 0
 
                 taken_a = primary_pool["list"][:primary_budget]
@@ -242,7 +249,7 @@ class AllocationEngine:
                     grid[0][c] = front_students[front_idx]
                     front_idx += 1
 
-            # Fill remaining seats alternating between pool A (XI) and pool B (XII) across bench pairs
+            # Fill remaining seats row by row: 11th in one row, 12th in next, 11th again
             for r in range(rows):
                 for c in range(cols):
                     seat_idx = r * cols + c
@@ -251,8 +258,8 @@ class AllocationEngine:
                     if grid[r][c] is not None:
                         continue
 
-                    # Alternating checkerboard: (r + c) % 2 gives perfect 2D alternating layout
-                    if (r + c) % 2 == 0:
+                    # Row-alternating: even row (0, 2, 4...) gets 11th, odd row (1, 3...) gets 12th
+                    if r % 2 == 0:
                         chosen = regular_a.pop(0) if regular_a else (regular_b.pop(0) if regular_b else None)
                     else:
                         chosen = regular_b.pop(0) if regular_b else (regular_a.pop(0) if regular_a else None)
@@ -297,6 +304,9 @@ class AllocationEngine:
                                     n_grd = n_item["student"].grade
                                     # Students from different grade levels take different exam papers, so no cheat risk
                                     if is_xi(n_grd) != is_xi(grd):
+                                        continue
+                                    # In row-alternation, students from different sections (e.g. XI-A vs XI-B) interleaved have no cheat risk
+                                    if nr == r and n_grd != grd:
                                         continue
                                     has_neighbor_conflict = True
                                     break

@@ -12,7 +12,7 @@ export const SAMPLE_SUBJECTS: ExamSubject[] = [];
 export const SAMPLE_SESSIONS: ExamSession[] = [];
 
 export const DEFAULT_ALLOCATION_OPTIONS: AllocationOptions = {
-  strategy: 'column_alternate',
+  strategy: 'row_alternate',
   leftoverHandling: 'distribute_evenly',
   avoidAdjacentSameSubject: true,
   benchPartnerDifferentGroup: true,

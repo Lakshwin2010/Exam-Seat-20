@@ -299,8 +299,9 @@ class ExcelService:
                     rm.rows = max(4, -(-st_count // rm.cols))
                     rm.notes = f"Classroom {rm.name} (Strength: {st_count} students)"
 
-            # 5. Ensure default exam sessions exist
-            counts["sessions"] += ExcelService._ensure_default_sessions(db)
+            # 5. Exam schedules are managed dynamically from the web frontend (no hardcoded sessions)
+            # counts["sessions"] += ExcelService._ensure_default_sessions(db)
+            pass
 
         db.commit()
         return counts
@@ -430,36 +431,8 @@ class ExcelService:
 
     @staticmethod
     def _ensure_default_sessions(db: Session) -> int:
-        """Ensures default exam sessions exist for the school curriculum, only if none exist."""
-        if db.query(models.ExamSession).count() > 0:
-            return 0
-
-        all_subs = db.query(models.Subject).all()
-        sub_by_code = {s.code.upper(): s for s in all_subs}
-
-        default_sessions_data = [
-            ("Term Exam - English Language Core", "09:00 AM - 12:00 PM", ["ENG"]),
-            ("Term Exam - Math & Additional Subjects", "09:00 AM - 12:00 PM", ["MATH", "A.M", "CS", "PSY", "ENTRE"]),
-            ("Term Exam - Biology & Additional Subjects", "01:30 PM - 04:30 PM", ["BIO", "CS", "PSY", "ENTRE"]),
-            ("Term Exam - Physics & Economics", "09:00 AM - 12:00 PM", ["PHY", "ECO"]),
-            ("Term Exam - Chemistry & Business Subjects", "01:30 PM - 04:30 PM", ["CHE", "BS", "ACC"])
-        ]
-        count = 0
-        today_str = datetime.date.today().isoformat()
-        for name, time_slot, sub_codes in default_sessions_data:
-            sess_id = f"sess-{name.lower().replace(' ', '-').replace('&', 'and')}"
-            matched_subs = [sub_by_code[c] for c in sub_codes if c in sub_by_code]
-            new_sess = models.ExamSession(
-                id=sess_id,
-                name=name,
-                date=today_str,
-                time_slot=time_slot,
-                subjects=matched_subs
-            )
-            db.add(new_sess)
-            count += 1
-        db.flush()
-        return count
+        """Exam schedules are created and synced dynamically from the main web."""
+        return 0
 
     @staticmethod
     def _parse_students_df(df: pd.DataFrame, db: Session, sheet_name: str = "") -> int:

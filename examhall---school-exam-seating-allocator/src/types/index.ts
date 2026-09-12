@@ -43,9 +43,10 @@ export interface ExamSession {
 }
 
 export type SplitStrategy = 
+  | 'row_alternate'      // 11th in one row, 12th in next, 11th again (Row 0: 11th, Row 1: 12th...)
+  | 'column_alternate'    // columns of Grade A, Grade B...
   | 'checkerboard_mix'   // alternate every seat: Grade A, Grade B, Grade A...
   | 'split_50_50'         // exactly split 15 students from Class A and 15 from Class B in a 30-seater room
-  | 'column_alternate'    // columns of Grade A, Grade B...
   | 'subject_interleave'; // mix different subjects as far apart as possible
 
 export type LeftoverHandling = 
