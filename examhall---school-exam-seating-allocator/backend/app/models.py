@@ -80,6 +80,8 @@ class ExamSession(Base):
     date = Column(String, nullable=False)  # YYYY-MM-DD
     time_slot = Column(String, nullable=False)  # e.g. "09:00 AM - 12:00 PM"
     is_locked = Column(Boolean, default=False)
+    grade11_subject_ids = Column(Text, default="")
+    grade12_subject_ids = Column(Text, default="")
 
     subjects = relationship("Subject", secondary=session_subject_assoc, back_populates="sessions")
     allocations = relationship("SeatAllocation", back_populates="session", cascade="all, delete-orphan")

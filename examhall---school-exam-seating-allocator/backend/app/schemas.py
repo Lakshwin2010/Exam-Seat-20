@@ -62,6 +62,8 @@ class ExamSessionBase(BaseModel):
     date: str  # YYYY-MM-DD
     timeSlot: str  # e.g. "09:00 AM - 12:00 PM"
     subjectIds: List[str] = []
+    grade11SubjectIds: List[str] = []
+    grade12SubjectIds: List[str] = []
     isLocked: Optional[bool] = False
 
 class ExamSessionCreate(ExamSessionBase):

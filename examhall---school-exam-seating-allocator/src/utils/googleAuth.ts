@@ -119,7 +119,11 @@ export interface SendClassEmailParams {
   toEmail: string;
   teacherName?: string;
   className: string;
+  sessionName?: string;
   studentCount: number;
+  roomSeatsCount?: number;
+  xiSeatsCount?: number;
+  xiiSeatsCount?: number;
   attachmentFilename: string;
   attachmentBase64: string;
 }
@@ -127,7 +131,8 @@ export interface SendClassEmailParams {
 export async function sendClassSpreadsheetEmail(params: SendClassEmailParams): Promise<{ id: string; threadId: string }> {
   const boundary = `__ExamHall_Boundary_${Date.now()}__`;
   
-  const subject = `ExamHall - Student & Exam Allocation Details for Class ${params.className}`;
+  const sessTitle = params.sessionName ? ` - ${params.sessionName}` : '';
+  const subject = `ExamHall - Seating & Despatch Plan for Class ${params.className}${sessTitle}`;
   
   const bodyHtml = `
 <!DOCTYPE html>
@@ -135,53 +140,73 @@ export async function sendClassSpreadsheetEmail(params: SendClassEmailParams): P
 <head>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6; }
-    .card { max-width: 600px; margin: 20px auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; }
+    .card { max-width: 620px; margin: 20px auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; }
     .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px; }
     .title { color: #1e3a8a; font-size: 20px; font-weight: bold; margin: 0; }
     .subtitle { color: #64748b; font-size: 13px; margin-top: 4px; }
-    .badge { display: inline-block; background-color: #dbeafe; color: #1d4ed8; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: bold; }
+    .badge { display: inline-block; background-color: #dbeafe; color: #1d4ed8; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: bold; }
+    .badge-green { display: inline-block; background-color: #d1fae5; color: #047857; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: bold; }
     .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; }
+    .report-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 12px 0; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
-      <div class="title">ExamHall - CS Academy</div>
-      <div class="subtitle">Exam Seating Allocation & Student Details</div>
+      <div class="title">CS Academy - Examination Cell</div>
+      <div class="subtitle">Exam Seating Allocation & Student Despatch Plan</div>
     </div>
     
-    <p>Dear <b>${params.teacherName || 'Class Teacher'}</b>,</p>
+    <p>Dear <b>${params.teacherName || 'Class Incharge'}</b>,</p>
     
-    <p>Please find attached the official Excel spreadsheet for <b>Class ${params.className}</b>.</p>
+    <p>Please find attached the official examination allocation workbook for <b>Class ${params.className}</b>${params.sessionName ? ` for <b>${params.sessionName}</b>` : ''}.</p>
     
-    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
-      <table style="width: 100%; font-size: 13px;">
+    <p style="font-size: 13px; color: #334155; font-weight: 600;">This workbook contains two separate reports across dedicated spreadsheet tabs:</p>
+
+    <!-- Report 1 Box -->
+    <div class="report-box" style="border-left: 4px solid #2563eb;">
+      <div style="font-weight: bold; color: #1e3a8a; font-size: 14px; margin-bottom: 4px;">
+        1. Tab: Room_${params.className.replace(/ /g, '')}_Seating (Who sits in your classroom)
+      </div>
+      <div style="font-size: 12px; color: #475569;">
+        Desk-by-desk door chart of students writing exams in Room <b>${params.className}</b>:
+        <ul style="margin: 6px 0; padding-left: 20px;">
+          <li>Total Seated: <b>${params.roomSeatsCount || 0} students</b></li>
+          <li>Class XI: <b>${params.xiSeatsCount || 0}</b> | Class XII: <b>${params.xiiSeatsCount || 0}</b> (Alternating checkerboard layout)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Report 2 Box -->
+    <div class="report-box" style="border-left: 4px solid #059669;">
+      <div style="font-weight: bold; color: #047857; font-size: 14px; margin-bottom: 4px;">
+        2. Tab: Class_${params.className.replace(/ /g, '')}_Despatch (Where your students must go)
+      </div>
+      <div style="font-size: 12px; color: #475569;">
+        Complete student roster for home class <b>${params.className}</b> showing:
+        <ul style="margin: 6px 0; padding-left: 20px;">
+          <li>Total Class Students: <b>${params.studentCount} students</b></li>
+          <li>Assigned exam hall, room number, and desk label for every student.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="background-color: #f1f5f9; border-radius: 8px; padding: 12px; margin: 16px 0; font-size: 12px;">
+      <table style="width: 100%;">
         <tr>
-          <td style="color: #64748b; padding: 4px 0;">Class & Section:</td>
-          <td style="font-weight: bold; color: #0f172a;">${params.className}</td>
+          <td style="color: #64748b;">Dispatched By:</td>
+          <td style="font-weight: 600; color: #0f172a;">${params.fromEmail}</td>
         </tr>
         <tr>
-          <td style="color: #64748b; padding: 4px 0;">Total Students:</td>
-          <td><span class="badge">${params.studentCount} Students</span></td>
-        </tr>
-        <tr>
-          <td style="color: #64748b; padding: 4px 0;">Dispatched By:</td>
-          <td style="color: #0f172a;">${params.fromEmail}</td>
-        </tr>
-        <tr>
-          <td style="color: #64748b; padding: 4px 0;">Attachment:</td>
-          <td style="color: #2563eb; font-family: monospace;">${params.attachmentFilename}</td>
+          <td style="color: #64748b;">Workbook File:</td>
+          <td style="font-weight: 600; color: #2563eb; font-family: monospace;">${params.attachmentFilename}</td>
         </tr>
       </table>
     </div>
     
-    <p style="font-size: 13px; color: #475569;">
-      The attached Excel workbook includes complete student roll numbers, registered exam subjects, and assigned examination seating details.
-    </p>
-    
     <div class="footer">
       Generated automatically via ExamHall - School Exam Seating Allocator & Monitoring System.<br>
-      CS Academy Exam Cell
+      CS Academy Examination Cell
     </div>
   </div>
 </body>

@@ -25,3 +25,13 @@ def get_db():
 def init_db():
     from app import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    
+    # Ensure grade11_subject_ids and grade12_subject_ids columns exist in SQLite exam_sessions table
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for col in ["grade11_subject_ids", "grade12_subject_ids"]:
+            try:
+                conn.execute(text(f"ALTER TABLE exam_sessions ADD COLUMN {col} TEXT DEFAULT ''"))
+                conn.commit()
+            except Exception:
+                pass

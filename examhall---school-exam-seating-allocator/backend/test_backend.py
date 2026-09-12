@@ -1,4 +1,5 @@
 import sys
+import datetime
 from pathlib import Path
 import unittest
 
@@ -138,7 +139,7 @@ class TestExamHallBackend(unittest.TestCase):
         rec_res = self.client.get("/api/email/recipients")
         self.assertEqual(rec_res.status_code, 200)
         rec_data = rec_res.json()
-        self.assertEqual(rec_data["totalSections"], 8)
+        self.assertEqual(rec_data["totalSections"], 15)
         
         # Verify XI-A and XI-B pre-configured emails
         sections_map = {s["section"]: s for s in rec_data["sections"]}
@@ -146,7 +147,7 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertEqual(sections_map["XI - B"]["email"], "erd_s1803155@csacademy.in")
         self.assertEqual(sections_map["XI - A"]["studentCount"], 30)
         self.assertEqual(sections_map["XI - B"]["studentCount"], 33)
-        print("[OK] Email recipients verified (8 sections, XI-A & XI-B configured)")
+        print("[OK] Email recipients verified (15 sections XI & XII, XI-A & XI-B configured)")
 
         # 2. Test class sheet generation for XI-A
         sheet_res = self.client.get("/api/email/class-sheet/XI%20-%20A")
@@ -155,8 +156,42 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertEqual(sheet_data["studentCount"], 30)
         self.assertTrue(sheet_data["filename"].endswith(".xlsx"))
         self.assertTrue(len(sheet_data["base64"]) > 500)
-        print(f"[OK] Class sheet generated: {sheet_data['filename']} ({sheet_data['sizeBytes']} bytes, base64 payload verified)")
+        print(f"[OK] 2-Tab Class sheet generated: {sheet_data['filename']} ({sheet_data['sizeBytes']} bytes, base64 payload verified)")
 
+    def test_09_grade_specific_exam_pairing(self):
+        # Create a session where Grade XI writes MATH and Grade XII writes PHY
+        subjects = self.client.get("/api/subjects").json()
+        math_sub = next(s for s in subjects if s["code"] == "MATH")
+        phy_sub = next(s for s in subjects if s["code"] == "PHY")
+
+        sess_name = f"Paired Term Exam {datetime.datetime.now().strftime('%H%M%S')}"
+        payload = {
+            "name": sess_name,
+            "date": "2026-09-20",
+            "timeSlot": "09:00 AM - 12:00 PM",
+            "grade11SubjectIds": [math_sub["id"]],
+            "grade12SubjectIds": [phy_sub["id"]]
+        }
+        res = self.client.post("/api/sessions", json=payload)
+        self.assertEqual(res.status_code, 200)
+        session = res.json()
+        self.assertEqual(len(session["grade11SubjectIds"]), 1)
+        self.assertEqual(len(session["grade12SubjectIds"]), 1)
+
+        # Generate seating allocation
+        alloc_res = self.client.post(f"/api/allocations/generate?session_id={session['id']}")
+        self.assertEqual(alloc_res.status_code, 200)
+        plan = alloc_res.json()
+        self.assertGreater(plan["stats"]["totalAssigned"], 0)
+        print(f"[OK] Paired exam allocated: {plan['stats']['totalAssigned']} students seated in alternating checkerboard!")
+
+        # Verify dual-tab sheet with session_id
+        sheet_res = self.client.get(f"/api/email/class-sheet/XI%20-%20A?session_id={session['id']}")
+        self.assertEqual(sheet_res.status_code, 200)
+        sheet_data = sheet_res.json()
+        self.assertGreater(sheet_data["roomSeatsCount"], 0)
+        self.assertGreater(sheet_data["despatchCount"], 0)
+        print(f"[OK] Dual-report verified for XI-A in session: {sheet_data['roomSeatsCount']} in-room seats, {sheet_data['despatchCount']} dispatched")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

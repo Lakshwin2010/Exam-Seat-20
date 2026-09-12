@@ -24,13 +24,54 @@ class AllocationEngine:
         session_subject_ids = {s.id.lower() for s in exam_session.subjects}
         session_subject_codes = {s.code.upper() for s in exam_session.subjects}
         all_students = db.query(models.Student).all()
-        all_subjects_map = {s.id: s for s in db.query(models.Subject).all()}
+        all_subjects = db.query(models.Subject).all()
+        all_subjects_map = {s.id: s for s in all_subjects}
+        sub_code_by_id = {s.id.lower(): s.code.upper() for s in all_subjects}
+
+        import json
+        def _parse_ids(val: str) -> List[str]:
+            if not val:
+                return []
+            try:
+                d = json.loads(val)
+                return d if isinstance(d, list) else []
+            except Exception:
+                return [x.strip() for x in val.split(",") if x.strip()]
+
+        raw_g11 = _parse_ids(getattr(exam_session, "grade11_subject_ids", ""))
+        raw_g12 = _parse_ids(getattr(exam_session, "grade12_subject_ids", ""))
+        g11_subject_ids = {s.lower() for s in raw_g11}
+        g12_subject_ids = {s.lower() for s in raw_g12}
+        g11_subject_codes = {sub_code_by_id[sid] for sid in g11_subject_ids if sid in sub_code_by_id}
+        g12_subject_codes = {sub_code_by_id[sid] for sid in g12_subject_ids if sid in sub_code_by_id}
+
+        def check_is_xi(g: str) -> bool:
+            u = g.upper()
+            return "XI" in u and "XII" not in u
+
+        def check_is_xii(g: str) -> bool:
+            return "XII" in g.upper()
 
         # 1. Identify all eligible candidates taking subjects in this session
         candidates: List[Dict[str, Any]] = []
         for stud in all_students:
+            stud_xi = check_is_xi(stud.grade)
+            stud_xii = check_is_xii(stud.grade)
+
             matched_subs = []
-            if session_subject_ids:
+            if stud_xi and (g11_subject_ids or g11_subject_codes):
+                # Class 11 student: strictly match against Grade 11 exam subjects
+                matched_subs = [
+                    s for s in stud.enrolled_subjects
+                    if s.id.lower() in g11_subject_ids or s.code.upper() in g11_subject_codes
+                ]
+            elif stud_xii and (g12_subject_ids or g12_subject_codes):
+                # Class 12 student: strictly match against Grade 12 exam subjects
+                matched_subs = [
+                    s for s in stud.enrolled_subjects
+                    if s.id.lower() in g12_subject_ids or s.code.upper() in g12_subject_codes
+                ]
+            elif session_subject_ids:
                 matched_subs = [
                     s for s in stud.enrolled_subjects 
                     if s.id.lower() in session_subject_ids or s.code.upper() in session_subject_codes

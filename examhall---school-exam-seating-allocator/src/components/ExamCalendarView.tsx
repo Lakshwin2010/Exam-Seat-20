@@ -57,8 +57,17 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createTimeSlot, setCreateTimeSlot] = useState('09:00 AM - 12:00 PM');
-  const [createSubjectIds, setCreateSubjectIds] = useState<string[]>(subjects.map(s => s.id));
+  const [createGrade11SubjectIds, setCreateGrade11SubjectIds] = useState<string[]>([]);
+  const [createGrade12SubjectIds, setCreateGrade12SubjectIds] = useState<string[]>([]);
   const [createSuccess, setCreateSuccess] = useState(false);
+
+  // Helper to initialize default subjects
+  const initFormSubjects = () => {
+    const math = subjects.find(s => s.code === 'MATH');
+    const phy = subjects.find(s => s.code === 'PHY');
+    setCreateGrade11SubjectIds(math ? [math.id] : subjects.slice(0, 1).map(s => s.id));
+    setCreateGrade12SubjectIds(phy ? [phy.id] : subjects.slice(1, 2).map(s => s.id));
+  };
 
   // Build calendar grid
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -85,15 +94,18 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
     setCreateSuccess(false);
     setCreateName('');
     setCreateTimeSlot('09:00 AM - 12:00 PM');
-    setCreateSubjectIds(subjects.map(s => s.id));
+    initFormSubjects();
   };
 
   const sessionsOnDate = selectedDate
     ? sessions.filter(s => s.date === selectedDate)
     : [];
 
-  const handleDeleteSession = (id: string) => {
+  const handleDeleteSession = async (id: string) => {
     setSessions(prev => prev.filter(s => s.id !== id));
+    try {
+      await fetch(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {}
   };
 
   const handleSelectAndGo = (id: string) => {
@@ -101,17 +113,46 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
     setActiveTab('plan');
   };
 
-  const handleCreateExam = (e: React.FormEvent) => {
+  const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate || !createName.trim()) return;
+
+    const g11 = createGrade11SubjectIds.length > 0 ? createGrade11SubjectIds : subjects.map(s => s.id);
+    const g12 = createGrade12SubjectIds.length > 0 ? createGrade12SubjectIds : subjects.map(s => s.id);
+    const allSubs = Array.from(new Set([...g11, ...g12]));
 
     const newSession: ExamSession = {
       id: `session-${Date.now()}`,
       name: createName.trim(),
       date: selectedDate,
       timeSlot: createTimeSlot,
-      subjectIds: createSubjectIds.length > 0 ? createSubjectIds : subjects.map(s => s.id),
+      subjectIds: allSubs,
+      grade11SubjectIds: g11,
+      grade12SubjectIds: g12
     };
+
+    // Save to backend if accessible
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newSession.id,
+          name: newSession.name,
+          date: newSession.date,
+          timeSlot: newSession.timeSlot,
+          subjectIds: newSession.subjectIds,
+          grade11SubjectIds: newSession.grade11SubjectIds,
+          grade12SubjectIds: newSession.grade12SubjectIds
+        })
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        newSession.id = saved.id;
+      }
+    } catch (err) {
+      console.warn("Backend session save fallback:", err);
+    }
 
     setSessions(prev => [...prev, newSession]);
     onSelectSession(newSession.id);
@@ -120,8 +161,14 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
     setCreateName('');
   };
 
-  const toggleCreateSubject = (subId: string) => {
-    setCreateSubjectIds(prev =>
+  const toggleGrade11Subject = (subId: string) => {
+    setCreateGrade11SubjectIds(prev =>
+      prev.includes(subId) ? prev.filter(id => id !== subId) : [...prev, subId]
+    );
+  };
+
+  const toggleGrade12Subject = (subId: string) => {
+    setCreateGrade12SubjectIds(prev =>
       prev.includes(subId) ? prev.filter(id => id !== subId) : [...prev, subId]
     );
   };
@@ -366,8 +413,43 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
                         )}
                       </div>
 
-                      {/* Subjects */}
-                      {sessSubjects.length > 0 && (
+                      {/* Paired Subjects Display */}
+                      {sess.grade11SubjectIds && sess.grade11SubjectIds.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-[#1E3A8A] flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                            <span>Class 11 (XI):</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {subjects.filter(s => sess.grade11SubjectIds?.includes(s.id)).map(sub => (
+                              <span key={sub.id} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                {sub.code}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {sess.grade12SubjectIds && sess.grade12SubjectIds.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] font-bold text-[#047857] flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                            <span>Class 12 (XII):</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {subjects.filter(s => sess.grade12SubjectIds?.includes(s.id)).map(sub => (
+                              <span key={sub.id} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {sub.code}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fallback to general subjects if neither grade-specific list is populated */}
+                      {(!sess.grade11SubjectIds || sess.grade11SubjectIds.length === 0) &&
+                       (!sess.grade12SubjectIds || sess.grade12SubjectIds.length === 0) &&
+                       sessSubjects.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {sessSubjects.map(sub => (
                             <span
@@ -470,27 +552,93 @@ export const ExamCalendarView: React.FC<ExamCalendarViewProps> = ({
                   </div>
 
                   {subjects.length > 0 && (
-                    <div>
-                      <label className="block font-semibold text-[#0F172A] mb-1.5 flex items-center gap-1">
-                        <BookOpen className="w-3 h-3 text-[#2563EB]" />
-                        Subjects in this Session
-                      </label>
-                      <div className="space-y-1.5 bg-[#F8FAFC] p-2.5 rounded-xl border border-[#E2E8F0] max-h-32 overflow-y-auto">
-                        {subjects.map(s => (
-                          <label key={s.id} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={createSubjectIds.includes(s.id)}
-                              onChange={() => toggleCreateSubject(s.id)}
-                              className="rounded text-[#2563EB]"
-                            />
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: s.color }}
-                            />
-                            <span className="text-[11px] font-semibold text-[#0F172A]">{s.code} – {s.name}</span>
+                    <div className="space-y-3 pt-1">
+                      {/* Class 11 (XI) Subjects */}
+                      <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/40">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="font-bold text-[#1E3A8A] flex items-center gap-1.5 text-xs">
+                            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                            <span>Class 11 (Grade XI) Exam Subject(s)</span>
                           </label>
-                        ))}
+                          <div className="flex items-center gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => setCreateGrade11SubjectIds(subjects.map(s => s.id))}
+                              className="text-blue-600 hover:underline font-semibold cursor-pointer"
+                            >
+                              All
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setCreateGrade11SubjectIds([])}
+                              className="text-slate-500 hover:underline cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1 bg-white p-2 rounded-lg border border-blue-100 max-h-28 overflow-y-auto">
+                          {subjects.map(s => (
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-0.5 rounded">
+                              <input
+                                type="checkbox"
+                                checked={createGrade11SubjectIds.includes(s.id)}
+                                onChange={() => toggleGrade11Subject(s.id)}
+                                className="rounded text-[#2563EB]"
+                              />
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: s.color }}
+                              />
+                              <span className="text-[11px] font-semibold text-[#0F172A]">{s.code} – {s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Class 12 (XII) Subjects */}
+                      <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="font-bold text-[#047857] flex items-center gap-1.5 text-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            <span>Class 12 (Grade XII) Exam Subject(s)</span>
+                          </label>
+                          <div className="flex items-center gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => setCreateGrade12SubjectIds(subjects.map(s => s.id))}
+                              className="text-emerald-700 hover:underline font-semibold cursor-pointer"
+                            >
+                              All
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setCreateGrade12SubjectIds([])}
+                              className="text-slate-500 hover:underline cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1 bg-white p-2 rounded-lg border border-emerald-100 max-h-28 overflow-y-auto">
+                          {subjects.map(s => (
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-0.5 rounded">
+                              <input
+                                type="checkbox"
+                                checked={createGrade12SubjectIds.includes(s.id)}
+                                onChange={() => toggleGrade12Subject(s.id)}
+                                className="rounded text-emerald-600"
+                              />
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: s.color }}
+                              />
+                              <span className="text-[11px] font-semibold text-[#0F172A]">{s.code} – {s.name}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}

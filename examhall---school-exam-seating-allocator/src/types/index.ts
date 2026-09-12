@@ -37,6 +37,8 @@ export interface ExamSession {
   date: string; // YYYY-MM-DD
   timeSlot: string; // e.g. "09:00 AM - 12:00 PM"
   subjectIds: string[]; // Subjects running in this session
+  grade11SubjectIds?: string[]; // Subjects for Class 11 (Grade XI)
+  grade12SubjectIds?: string[]; // Subjects for Class 12 (Grade XII)
   isLocked?: boolean;
 }
 

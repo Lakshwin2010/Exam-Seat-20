@@ -654,6 +654,8 @@ export default function App() {
         onClose={() => setIsEmailModalOpen(false)}
         currentUser={currentUser}
         onSignInSuccess={(user) => setCurrentUser(user)}
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
       />
 
       <div className="md:hidden sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t border-[#E2E8F0] p-2.5 flex items-center justify-around gap-2 no-print">

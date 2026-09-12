@@ -43,6 +43,25 @@ export function runSeatingAllocation(
     }
   }
 
+  const g11SubIds = new Set((session?.grade11SubjectIds || []).map(id => id.toLowerCase()));
+  const g12SubIds = new Set((session?.grade12SubjectIds || []).map(id => id.toLowerCase()));
+  const g11SubCodes = new Set<string>();
+  const g12SubCodes = new Set<string>();
+  for (const sId of g11SubIds) {
+    if (subjectById.has(sId)) g11SubCodes.add(subjectById.get(sId)!.code.toUpperCase());
+    else if (subjectByCode.has(sId.toUpperCase())) g11SubCodes.add(sId.toUpperCase());
+  }
+  for (const sId of g12SubIds) {
+    if (subjectById.has(sId)) g12SubCodes.add(subjectById.get(sId)!.code.toUpperCase());
+    else if (subjectByCode.has(sId.toUpperCase())) g12SubCodes.add(sId.toUpperCase());
+  }
+
+  const isXI = (g: string) => {
+    const u = (g || '').toUpperCase();
+    return u.includes('XI') && !u.includes('XII');
+  };
+  const isXII = (g: string) => (g || '').toUpperCase().includes('XII');
+
   // 1. Identify all eligible students taking exams in this session
   const candidates: StudentToSeat[] = [];
 
@@ -52,8 +71,24 @@ export function runSeatingAllocation(
       .filter((s): s is ExamSubject => Boolean(s));
 
     let chosenSub: ExamSubject | null = null;
+    const studXI = isXI(student.grade);
+    const studXII = isXII(student.grade);
 
-    if (sessionSubIds.size === 0) {
+    if (studXI && (g11SubIds.size > 0 || g11SubCodes.size > 0)) {
+      // Grade 11 student strictly matches Grade 11 exam subjects
+      chosenSub = studentSubs.find(sub => 
+        g11SubIds.has(sub.id.toLowerCase()) ||
+        g11SubIds.has(sub.code.toLowerCase()) ||
+        g11SubCodes.has(sub.code.toUpperCase())
+      ) || null;
+    } else if (studXII && (g12SubIds.size > 0 || g12SubCodes.size > 0)) {
+      // Grade 12 student strictly matches Grade 12 exam subjects
+      chosenSub = studentSubs.find(sub => 
+        g12SubIds.has(sub.id.toLowerCase()) ||
+        g12SubIds.has(sub.code.toLowerCase()) ||
+        g12SubCodes.has(sub.code.toUpperCase())
+      ) || null;
+    } else if (sessionSubIds.size === 0) {
       // General session: student takes first enrolled subject or default
       chosenSub = studentSubs[0] || allSubjects[0] || {
         id: 'sub-gen',
@@ -63,7 +98,7 @@ export function runSeatingAllocation(
         color: '#2563EB'
       };
     } else {
-      // Match by subject ID or subject code
+      // Match by general session subject ID or subject code
       for (const sub of studentSubs) {
         if (
           sessionSubIds.has(sub.id.toLowerCase()) ||
