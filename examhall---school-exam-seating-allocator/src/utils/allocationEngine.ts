@@ -160,7 +160,7 @@ export function runSeatingAllocation(
     });
   }
 
-  // Convert map to array of pools for round-robin / 50-50 splitting
+  // Convert map to array of pools
   const pools = Array.from(groupMap.entries()).map(([key, list]) => ({
     key,
     list: [...list],
@@ -169,8 +169,17 @@ export function runSeatingAllocation(
     originalCount: list.length
   }));
 
-  // Sort pools with largest counts first
-  pools.sort((a, b) => b.list.length - a.list.length);
+  // Natural section sort key: XI before XII, then alphabetical by section (XI - A, XI - B ... XII - A, XII - B ...)
+  const sectionSortKey = (gradeStr?: string) => {
+    const g = (gradeStr || '').toUpperCase();
+    const isXII = g.includes('XII');
+    const isXI = g.includes('XI') && !isXII;
+    const match = g.match(/[-–\s]([A-Z])\b/);
+    const sec = match ? match[1] : g;
+    return `${isXI ? '0' : isXII ? '1' : '2'}_${sec}_${g}`;
+  };
+
+  pools.sort((a, b) => sectionSortKey(a.grade).localeCompare(sectionSortKey(b.grade)));
 
   const roomAllocations: RoomAllocation[] = [];
   const unassignedStudents: { student: Student; subject: ExamSubject; reason: string }[] = [];
@@ -207,7 +216,7 @@ export function runSeatingAllocation(
     }
 
     // Determine how many students from each group to place in this room
-    // User request: "if a class can accommodate 30 people... it should split like 15 students from that class and 15 from another class... if incase there is a difference... it can put 2 or 3 students of a single subject"
+    // User request: 15 Class 11 and 15 Class 12 of the same class for 30 capacity, dynamically adjusting by class strength
     const activePools = pools.filter(p => p.list.length > 0);
 
     if (activePools.length === 0) break;
@@ -221,151 +230,107 @@ export function runSeatingAllocation(
       const taken = p.list.splice(0, takeCount);
       roomCandidates = taken;
     } else {
-    // Helpers to identify Grade 11 vs Grade 12
-    const isXI = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XI') && !grade.toUpperCase().includes('XII'));
-    const isXII = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XII'));
+      // Helpers to identify Grade 11 vs Grade 12
+      const isXI = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XI') && !grade.toUpperCase().includes('XII'));
+      const isXII = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XII'));
 
-    const hasXI = activePools.some(p => isXI(p.grade));
-    const hasXII = activePools.some(p => isXII(p.grade));
+      const hasXI = activePools.some(p => isXI(p.grade));
+      const hasXII = activePools.some(p => isXII(p.grade));
 
-    let takenA: StudentToSeat[] = [];
-    let takenB: StudentToSeat[] = [];
-    const additionalLeftovers: StudentToSeat[] = [];
+      let takenA: StudentToSeat[] = [];
+      let takenB: StudentToSeat[] = [];
+      const additionalLeftovers: StudentToSeat[] = [];
 
-    if (hasXI && hasXII) {
-      // Row-alternating arrangement: 11th in one row (Row 0, 2, 4...), 12th in next (Row 1, 3, 5...), 11th again
-      let evenRowSeats = 0;
-      let oddRowSeats = 0;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (r * cols + c < capacity) {
-            if (r % 2 === 0) evenRowSeats++;
-            else oddRowSeats++;
+      if (hasXI && hasXII) {
+        let evenCells = 0;
+        let oddCells = 0;
+        let evenRowSeats = 0;
+        let oddRowSeats = 0;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (r * cols + c < capacity) {
+              if ((r + c) % 2 === 0) evenCells++;
+              else oddCells++;
+              if (r % 2 === 0) evenRowSeats++;
+              else oddRowSeats++;
+            }
           }
         }
-      }
 
-      const targetA = (options.strategy === 'row_alternate' || !options.strategy) ? evenRowSeats : Math.floor(capacity / 2);
-      const targetB = capacity - targetA;
-
-      // Round-robin / interleave sections across XI pools
-      const xiPools = pools.filter(p => isXI(p.grade) && p.list.length > 0);
-      while (takenA.length < targetA && xiPools.length > 0) {
-        let addedAny = false;
-        for (const p of xiPools) {
-          if (takenA.length < targetA && p.list.length > 0) {
-            takenA.push(p.list.shift()!);
-            addedAny = true;
-          }
+        let targetA = Math.ceil(capacity / 2);
+        let targetB = capacity - targetA;
+        if (oddCells > evenCells) {
+          targetA = oddCells;
+          targetB = evenCells;
+        } else {
+          targetA = evenCells;
+          targetB = oddCells;
         }
-        if (!addedAny) break;
-      }
 
-      // Round-robin / interleave sections across XII pools
-      const xiiPools = pools.filter(p => isXII(p.grade) && p.list.length > 0);
-      while (takenB.length < targetB && xiiPools.length > 0) {
-        let addedAny = false;
-        for (const p of xiiPools) {
-          if (takenB.length < targetB && p.list.length > 0) {
-            takenB.push(p.list.shift()!);
-            addedAny = true;
-          }
-        }
-        if (!addedAny) break;
-      }
-
-      // Leftovers if either grade ran out
-      let currentRoomCount = takenA.length + takenB.length;
-      if (currentRoomCount < capacity) {
+        // Sequential class-by-class filling: takenA draws from the same class (e.g. XI - A)
         for (const p of pools) {
-          if (p.list.length > 0 && currentRoomCount < capacity) {
-            const need = capacity - currentRoomCount;
+          if (isXI(p.grade) && p.list.length > 0) {
+            const need = targetA - takenA.length;
+            if (need <= 0) break;
             const take = Math.min(need, p.list.length);
-            const taken = p.list.splice(0, take);
-            if (isXI(p.grade)) {
-              takenA.push(...taken);
-            } else {
-              takenB.push(...taken);
-            }
-            currentRoomCount += taken.length;
+            takenA.push(...p.list.splice(0, take));
           }
         }
-      }
-    } else {
-      // Fallback for single grade or multi-subject single-year groups
-      const poolA = activePools[0];
-      const poolB = activePools[1] || null;
 
-      const halfCapacity = Math.floor(capacity / 2);
-      const takeA = Math.min(halfCapacity, poolA.list.length);
-      takenA = poolA.list.splice(0, takeA);
-
-      if (poolB) {
-        const takeB = Math.min(capacity - takeA, poolB.list.length);
-        takenB = poolB.list.splice(0, takeB);
-      }
-
-      let currentRoomCount = takenA.length + takenB.length;
-      if (currentRoomCount < capacity) {
+        // Sequential class-by-class filling: takenB draws from the same class (e.g. XII - A)
         for (const p of pools) {
-          if (p.list.length > 0 && currentRoomCount + additionalLeftovers.length < capacity) {
-            const availableSpace = capacity - (currentRoomCount + additionalLeftovers.length);
-            const takeLeftover = Math.min(availableSpace, p.list.length);
-            additionalLeftovers.push(...p.list.splice(0, takeLeftover));
+          if (isXII(p.grade) && p.list.length > 0) {
+            const need = targetB - takenB.length;
+            if (need <= 0) break;
+            const take = Math.min(need, p.list.length);
+            takenB.push(...p.list.splice(0, take));
           }
         }
-      }
-    }
 
-      // Merge and interleave candidates according to strategy
-      if (options.strategy === 'checkerboard_mix' || options.strategy === 'split_50_50') {
-        // Interleave takenA and takenB in alternating order (A, B, A, B...)
-        const interleaved: StudentToSeat[] = [];
-        const maxLen = Math.max(takenA.length, takenB.length);
-        for (let i = 0; i < maxLen; i++) {
-          if (i < takenA.length) interleaved.push(takenA[i]);
-          if (i < takenB.length) interleaved.push(takenB[i]);
-        }
-        // Append any extra leftover students
-        interleaved.push(...additionalLeftovers);
-        roomCandidates = interleaved;
-      } else if (options.strategy === 'column_alternate') {
-        const interleaved: StudentToSeat[] = [];
-        let aIdx = 0;
-        let bIdx = 0;
-        let lIdx = 0;
-        for (let c = 0; c < cols; c++) {
-          for (let r = 0; r < rows; r++) {
-            if (c % 2 === 0) {
-              if (aIdx < takenA.length) interleaved.push(takenA[aIdx++]);
-              else if (bIdx < takenB.length) interleaved.push(takenB[bIdx++]);
-              else if (lIdx < additionalLeftovers.length) interleaved.push(additionalLeftovers[lIdx++]);
-            } else {
-              if (bIdx < takenB.length) interleaved.push(takenB[bIdx++]);
-              else if (aIdx < takenA.length) interleaved.push(takenA[aIdx++]);
-              else if (lIdx < additionalLeftovers.length) interleaved.push(additionalLeftovers[lIdx++]);
+        // Leftovers if either grade ran out
+        let currentRoomCount = takenA.length + takenB.length;
+        if (currentRoomCount < capacity) {
+          for (const p of pools) {
+            if (p.list.length > 0 && currentRoomCount < capacity) {
+              const need = capacity - currentRoomCount;
+              const take = Math.min(need, p.list.length);
+              const taken = p.list.splice(0, take);
+              if (isXI(p.grade)) {
+                takenA.push(...taken);
+              } else {
+                takenB.push(...taken);
+              }
+              currentRoomCount += taken.length;
             }
           }
         }
-        roomCandidates = interleaved;
       } else {
-        // Multi-subject round robin
-        const allGroups = [takenA, takenB, additionalLeftovers].filter(g => g.length > 0);
-        const interleaved: StudentToSeat[] = [];
-        let added = true;
-        let index = 0;
-        while (added) {
-          added = false;
-          for (const g of allGroups) {
-            if (index < g.length) {
-              interleaved.push(g[index]);
-              added = true;
+        // Fallback for single grade or multi-subject single-year groups
+        const poolA = activePools[0];
+        const poolB = activePools[1] || null;
+
+        const halfCapacity = Math.floor(capacity / 2);
+        const takeA = Math.min(halfCapacity, poolA.list.length);
+        takenA = poolA.list.splice(0, takeA);
+
+        if (poolB) {
+          const takeB = Math.min(capacity - takeA, poolB.list.length);
+          takenB = poolB.list.splice(0, takeB);
+        }
+
+        let currentRoomCount = takenA.length + takenB.length;
+        if (currentRoomCount < capacity) {
+          for (const p of pools) {
+            if (p.list.length > 0 && currentRoomCount + additionalLeftovers.length < capacity) {
+              const availableSpace = capacity - (currentRoomCount + additionalLeftovers.length);
+              const takeLeftover = Math.min(availableSpace, p.list.length);
+              additionalLeftovers.push(...p.list.splice(0, takeLeftover));
             }
           }
-          index++;
         }
-        roomCandidates = interleaved;
       }
+
+      roomCandidates = [...takenA, ...takenB, ...additionalLeftovers];
     }
 
     // Assign candidates to seat slots
@@ -404,41 +369,64 @@ export function runSeatingAllocation(
     const isXI = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XI') && !grade.toUpperCase().includes('XII'));
     const isXII = (grade?: string) => Boolean(grade && grade.toUpperCase().includes('XII'));
 
-    // Now assign regular candidates based on pattern
-    if (options.strategy === 'column_alternate') {
-      // Column by column assignment (Col 0: Group A, Col 1: Group B, Col 2: Group A...)
-      let candIdx = 0;
-      for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-          const seat = assignedSeats.find(s => s.row === r && s.col === c);
-          if (seat && !seat.studentId && candIdx < regularCandidates.length) {
-            const cand = regularCandidates[candIdx++];
-            seat.studentId = cand.student.id;
-            seat.studentRollNo = cand.student.rollNo;
-            seat.studentName = cand.student.name;
-            seat.studentGrade = cand.student.grade;
-            seat.subjectCode = cand.subject.code;
-            seat.subjectName = cand.subject.name;
-            seat.subjectColor = cand.subject.color;
-            seat.isSpecialNeeds = cand.student.specialNeeds;
+    // Check if placing cand at (r, c) would cause a neighbor same-subject conflict
+    const wouldCauseConflict = (rIdx: number, cIdx: number, cand: StudentToSeat): boolean => {
+      const subCode = cand.subject.code;
+      const isCandXI = isXI(cand.student.grade);
+      const neighborOffsets = [[rIdx - 1, cIdx], [rIdx + 1, cIdx], [rIdx, cIdx - 1], [rIdx, cIdx + 1]];
+      for (const [nr, nc] of neighborOffsets) {
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          const seat = assignedSeats.find(s => s.row === nr && s.col === nc);
+          if (seat && seat.studentId && seat.subjectCode === subCode) {
+            const isNeighborXI = isXI(seat.studentGrade);
+            if (isNeighborXI !== isCandXI) continue;
+            return true;
           }
         }
       }
-    } else if (options.strategy === 'row_alternate' || !options.strategy) {
-      // Row by row assignment: 11th in one row (Row 0, 2, 4...), 12th in next (Row 1, 3, 5...), 11th again
-      const regA = regularCandidates.filter(c => isXI(c.student.grade));
-      const regB = regularCandidates.filter(c => isXII(c.student.grade));
-      const otherCands = regularCandidates.filter(c => !isXI(c.student.grade) && !isXII(c.student.grade));
+      return false;
+    };
 
+    const strat = options.strategy || 'split_50_50';
+    const regA = regularCandidates.filter(c => isXI(c.student.grade));
+    const regB = regularCandidates.filter(c => isXII(c.student.grade));
+
+    if (strat === 'row_alternate' && !(regA.length > 0 && regB.length > 0)) {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const seat = assignedSeats.find(s => s.row === r && s.col === c);
           if (seat && !seat.studentId) {
             let cand: StudentToSeat | undefined;
             if (r % 2 === 0) {
-              cand = regA.shift() || regB.shift() || otherCands.shift();
+              cand = regA.shift() || (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined);
             } else {
-              cand = regB.shift() || regA.shift() || otherCands.shift();
+              cand = (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined) ||
+                     (regA.length > 0 && !wouldCauseConflict(r, c, regA[0]) ? regA.shift() : undefined);
+            }
+            if (cand) {
+              seat.studentId = cand.student.id;
+              seat.studentRollNo = cand.student.rollNo;
+              seat.studentName = cand.student.name;
+              seat.studentGrade = cand.student.grade;
+              seat.subjectCode = cand.subject.code;
+              seat.subjectName = cand.subject.name;
+              seat.subjectColor = cand.subject.color;
+              seat.isSpecialNeeds = cand.student.specialNeeds;
+            }
+          }
+        }
+      }
+    } else if (strat === 'column_alternate') {
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          const seat = assignedSeats.find(s => s.row === r && s.col === c);
+          if (seat && !seat.studentId) {
+            let cand: StudentToSeat | undefined;
+            if (c % 2 === 0) {
+              cand = regA.shift() || (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined);
+            } else {
+              cand = (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined) ||
+                     (regA.length > 0 && !wouldCauseConflict(r, c, regA[0]) ? regA.shift() : undefined);
             }
             if (cand) {
               seat.studentId = cand.student.id;
@@ -454,19 +442,76 @@ export function runSeatingAllocation(
         }
       }
     } else {
-      // Sequential or fallback alternate
-      let candIdx = 0;
-      for (const seat of assignedSeats) {
-        if (!seat.studentId && candIdx < regularCandidates.length) {
-          const cand = regularCandidates[candIdx++];
-          seat.studentId = cand.student.id;
-          seat.studentRollNo = cand.student.rollNo;
-          seat.studentName = cand.student.name;
-          seat.studentGrade = cand.student.grade;
-          seat.subjectCode = cand.subject.code;
-          seat.subjectName = cand.subject.name;
-          seat.subjectColor = cand.subject.color;
-          seat.isSpecialNeeds = cand.student.specialNeeds;
+      // Default: split_50_50 / checkerboard paired-bench alternating (r + c) % 2
+      let evenCells = 0;
+      let oddCells = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (r * cols + c < capacity) {
+            if ((r + c) % 2 === 0) evenCells++;
+            else oddCells++;
+          }
+        }
+      }
+      const xiParity = oddCells > evenCells ? 1 : 0;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const seat = assignedSeats.find(s => s.row === r && s.col === c);
+          if (seat && !seat.studentId) {
+            let cand: StudentToSeat | undefined;
+            if ((r + c) % 2 === xiParity) {
+              cand = regA.shift() || (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined);
+            } else {
+              cand = (regB.length > 0 && !wouldCauseConflict(r, c, regB[0]) ? regB.shift() : undefined) ||
+                     (regA.length > 0 && !wouldCauseConflict(r, c, regA[0]) ? regA.shift() : undefined);
+            }
+            if (cand) {
+              seat.studentId = cand.student.id;
+              seat.studentRollNo = cand.student.rollNo;
+              seat.studentName = cand.student.name;
+              seat.studentGrade = cand.student.grade;
+              seat.subjectCode = cand.subject.code;
+              seat.subjectName = cand.subject.name;
+              seat.subjectColor = cand.subject.color;
+              seat.isSpecialNeeds = cand.student.specialNeeds;
+            }
+          }
+        }
+      }
+    }
+
+    // Place any remaining candidates in non-conflicting available seats
+    for (const q of [regA, regB]) {
+      while (q.length > 0) {
+        const cand = q.shift()!;
+        let placed = false;
+        for (const seat of assignedSeats) {
+          if (!seat.studentId && !wouldCauseConflict(seat.row, seat.col, cand)) {
+            seat.studentId = cand.student.id;
+            seat.studentRollNo = cand.student.rollNo;
+            seat.studentName = cand.student.name;
+            seat.studentGrade = cand.student.grade;
+            seat.subjectCode = cand.subject.code;
+            seat.subjectName = cand.subject.name;
+            seat.subjectColor = cand.subject.color;
+            seat.isSpecialNeeds = cand.student.specialNeeds;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          const emptySeat = assignedSeats.find(s => !s.studentId);
+          if (emptySeat) {
+            emptySeat.studentId = cand.student.id;
+            emptySeat.studentRollNo = cand.student.rollNo;
+            emptySeat.studentName = cand.student.name;
+            emptySeat.studentGrade = cand.student.grade;
+            emptySeat.subjectCode = cand.subject.code;
+            emptySeat.subjectName = cand.subject.name;
+            emptySeat.subjectColor = cand.subject.color;
+            emptySeat.isSpecialNeeds = cand.student.specialNeeds;
+          }
         }
       }
     }
@@ -728,7 +773,7 @@ export function resolveConflicts(plan: SeatingPlan): SeatingPlan {
     // each pair counts as 2 neighbor conflicts
     for(let i=0; i<Math.ceil(totalNeighborConflicts / 2); i++) {
         newPlan.conflicts.push({
-            type: 'neighbor_conflict',
+            type: 'neighbor_same_subject',
             severity: 'warning',
             message: 'Neighbor proximity detected (same subject)',
             studentId: ''

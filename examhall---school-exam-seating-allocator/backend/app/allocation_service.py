@@ -112,7 +112,16 @@ class AllocationEngine:
                 )
             )
 
-        # Create pools sorted by size descending
+        # Create pools sorted in natural section order (XI - A, XI - B ... XII - A, XII - B ...)
+        import re
+        def section_sort_key(p):
+            g = (p.get("grade") or "").upper()
+            is_xii = "XII" in g
+            is_xi = "XI" in g and not is_xii
+            m = re.search(r'[-–\s]([A-Z])\b', g)
+            sec = m.group(1) if m else g
+            return (0 if is_xi else (1 if is_xii else 2), sec, g, p.get("key", ""))
+
         pools = []
         for key, members in group_map.items():
             pools.append({
@@ -122,7 +131,7 @@ class AllocationEngine:
                 "grade": members[0]["student"].grade,
                 "originalCount": len(members)
             })
-        pools.sort(key=lambda p: len(p["list"]), reverse=True)
+        pools.sort(key=section_sort_key)
 
         room_allocations: List[schemas.RoomAllocation] = []
         unassigned_students: List[schemas.UnassignedStudent] = []
@@ -160,41 +169,46 @@ class AllocationEngine:
             has_xi = any(is_xi(p["grade"]) for p in available_pools)
             has_xii = any(is_xii(p["grade"]) for p in available_pools)
 
-            # Count seats in even rows (0, 2, 4...) and odd rows (1, 3, 5...)
+            even_cells = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r + c) % 2 == 0)
+            odd_cells = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r + c) % 2 == 1)
             even_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 0))
             odd_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 1))
 
             taken_a: List[Dict[str, Any]] = []
             taken_b: List[Dict[str, Any]] = []
 
+            strat = getattr(options, "strategy", "split_50_50") or "split_50_50"
+
             if has_xi and has_xii:
-                # Row-alternating arrangement: 11th in one row, 12th in next, 11th again
-                target_a = even_row_seats
-                target_b = odd_row_seats
+                # Strictly 50/50 split of 11th and 12th according to class strength and room capacity:
+                # e.g. 15 XI & 15 XII for 30 capacity, 17/17 for 34, 14/14 for 28, 17/16 for 33
+                # Aligned with room grid parity so neighbor conflicts are 0
+                if odd_cells > even_cells:
+                    target_a = odd_cells
+                    target_b = even_cells
+                else:
+                    target_a = even_cells
+                    target_b = odd_cells
 
-                # Round-robin / interleave sections across XI pools for taken_a
-                xi_pools = [p for p in pools if is_xi(p["grade"]) and len(p["list"]) > 0]
-                while len(taken_a) < target_a and xi_pools:
-                    added_any = False
-                    for p in xi_pools:
-                        if len(taken_a) < target_a and p["list"]:
-                            taken_a.append(p["list"].pop(0))
-                            added_any = True
-                    xi_pools = [p for p in xi_pools if len(p["list"]) > 0]
-                    if not added_any:
-                        break
+                # Sequential filling class-by-class for Grade 11: all students come from the same class
+                for p in pools:
+                    if is_xi(p["grade"]) and p["list"]:
+                        need = target_a - len(taken_a)
+                        if need <= 0:
+                            break
+                        take = min(need, len(p["list"]))
+                        taken_a.extend(p["list"][:take])
+                        del p["list"][:take]
 
-                # Round-robin / interleave sections across XII pools for taken_b
-                xii_pools = [p for p in pools if is_xii(p["grade"]) and len(p["list"]) > 0]
-                while len(taken_b) < target_b and xii_pools:
-                    added_any = False
-                    for p in xii_pools:
-                        if len(taken_b) < target_b and p["list"]:
-                            taken_b.append(p["list"].pop(0))
-                            added_any = True
-                    xii_pools = [p for p in xii_pools if len(p["list"]) > 0]
-                    if not added_any:
-                        break
+                # Sequential filling class-by-class for Grade 12: all students come from the same class
+                for p in pools:
+                    if is_xii(p["grade"]) and p["list"]:
+                        need = target_b - len(taken_b)
+                        if need <= 0:
+                            break
+                        take = min(need, len(p["list"]))
+                        taken_b.extend(p["list"][:take])
+                        del p["list"][:take]
 
                 # Leftovers if any slots remain unfilled
                 needed_more = capacity - (len(taken_a) + len(taken_b))
@@ -214,7 +228,7 @@ class AllocationEngine:
                 # Fallback to standard 2-pool split if only one grade is in this session
                 primary_pool = available_pools[0]
                 secondary_pool = available_pools[1] if len(available_pools) > 1 else None
-                primary_budget = min(even_row_seats, len(primary_pool["list"]))
+                primary_budget = min(even_cells, len(primary_pool["list"]))
                 secondary_budget = min(capacity - primary_budget, len(secondary_pool["list"])) if secondary_pool else 0
 
                 taken_a = primary_pool["list"][:primary_budget]
@@ -249,22 +263,95 @@ class AllocationEngine:
                     grid[0][c] = front_students[front_idx]
                     front_idx += 1
 
-            # Fill remaining seats row by row: 11th in one row, 12th in next, 11th again
-            for r in range(rows):
+            # Place regular candidates based on strategy
+            def would_cause_conflict(r_idx: int, c_idx: int, cand: Dict[str, Any]) -> bool:
+                sub_code = cand["subject"].code
+                cand_grd = cand["student"].grade
+                for nr, nc in [(r_idx - 1, c_idx), (r_idx + 1, c_idx), (r_idx, c_idx - 1), (r_idx, c_idx + 1)]:
+                    if 0 <= nr < rows and 0 <= nc < cols:
+                        n_item = grid[nr][nc]
+                        if n_item and n_item["subject"].code == sub_code:
+                            if is_xi(n_item["student"].grade) != is_xi(cand_grd):
+                                continue
+                            return True
+                return False
+
+            if strat == "row_alternate" and not (has_xi and has_xii):
+                for r in range(rows):
+                    for c in range(cols):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if r % 2 == 0:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
+            elif strat == "column_alternate":
                 for c in range(cols):
-                    seat_idx = r * cols + c
-                    if seat_idx >= capacity:
-                        continue
-                    if grid[r][c] is not None:
-                        continue
+                    for r in range(rows):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if c % 2 == 0:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
+            else:
+                # Default / split_50_50 / checkerboard: Paired-bench 50/50 alternating
+                xi_parity = 1 if odd_cells > even_cells else 0
+                for r in range(rows):
+                    for c in range(cols):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if (r + c) % 2 == xi_parity:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
 
-                    # Row-alternating: even row (0, 2, 4...) gets 11th, odd row (1, 3...) gets 12th
-                    if r % 2 == 0:
-                        chosen = regular_a.pop(0) if regular_a else (regular_b.pop(0) if regular_b else None)
-                    else:
-                        chosen = regular_b.pop(0) if regular_b else (regular_a.pop(0) if regular_a else None)
-
-                    grid[r][c] = chosen
+            # Place any remaining candidates in non-conflicting available seats
+            for q in [regular_a, regular_b]:
+                while q:
+                    cand = q.pop(0)
+                    placed = False
+                    for r in range(rows):
+                        for c in range(cols):
+                            if r * cols + c < capacity and grid[r][c] is None and not would_cause_conflict(r, c, cand):
+                                grid[r][c] = cand
+                                placed = True
+                                break
+                        if placed:
+                            break
+                    if not placed:
+                        for r in range(rows):
+                            for c in range(cols):
+                                if r * cols + c < capacity and grid[r][c] is None:
+                                    grid[r][c] = cand
+                                    placed = True
+                                    break
+                            if placed:
+                                break
 
             # Check neighbor conflicts and build SeatAssignment objects
             grade_dist: Dict[str, int] = {}

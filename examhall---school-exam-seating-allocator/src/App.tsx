@@ -36,11 +36,11 @@ import { api } from './utils/api';
 import { Sparkles, Layers, Building2, Users, BookOpen, Plus, UploadCloud, RefreshCw, FileSpreadsheet, Database, Calendar, Clock, Home } from 'lucide-react';
 
 const STORAGE_KEYS = {
-  ROOMS: 'examhall_clean_rooms_v6',
-  STUDENTS: 'examhall_clean_students_v6',
-  SUBJECTS: 'examhall_clean_subjects_v6',
-  SESSIONS: 'examhall_clean_sessions_v6',
-  OPTIONS: 'examhall_clean_options_v6'
+  ROOMS: 'examhall_clean_rooms_v8',
+  STUDENTS: 'examhall_clean_students_v8',
+  SUBJECTS: 'examhall_clean_subjects_v8',
+  SESSIONS: 'examhall_clean_sessions_v8',
+  OPTIONS: 'examhall_clean_options_v8'
 };
 
 export default function App() {
@@ -51,7 +51,9 @@ export default function App() {
         'examhall_rooms_v2', 'examhall_students_v2', 'examhall_subjects_v2', 'examhall_sessions_v2', 'examhall_options_v2',
         'examhall_rooms_v3', 'examhall_students_v3', 'examhall_subjects_v3', 'examhall_sessions_v3', 'examhall_options_v3',
         'examhall_rooms_v4', 'examhall_students_v4', 'examhall_subjects_v4', 'examhall_sessions_v4', 'examhall_options_v4',
-        'examhall_rooms_v5', 'examhall_students_v5', 'examhall_subjects_v5', 'examhall_sessions_v5', 'examhall_options_v5'
+        'examhall_rooms_v5', 'examhall_students_v5', 'examhall_subjects_v5', 'examhall_sessions_v5', 'examhall_options_v5',
+        'examhall_clean_rooms_v6', 'examhall_clean_students_v6', 'examhall_clean_subjects_v6', 'examhall_clean_sessions_v6', 'examhall_clean_options_v6',
+        'examhall_clean_rooms_v7', 'examhall_clean_students_v7', 'examhall_clean_subjects_v7', 'examhall_clean_sessions_v7', 'examhall_clean_options_v7'
       ];
       for (const k of keysToPurge) {
         localStorage.removeItem(k);
@@ -104,10 +106,14 @@ export default function App() {
   const [allocationOptions, setAllocationOptions] = useState<AllocationOptions>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.OPTIONS);
-      return saved ? JSON.parse(saved) : DEFAULT_ALLOCATION_OPTIONS;
-    } catch {
-      return DEFAULT_ALLOCATION_OPTIONS;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_ALLOCATION_OPTIONS, ...parsed, strategy: 'split_50_50' };
+        }
+      }
+    } catch {}
+    return DEFAULT_ALLOCATION_OPTIONS;
   });
 
   const [selectedSessionId, setSelectedSessionId] = useState<string>(() => {

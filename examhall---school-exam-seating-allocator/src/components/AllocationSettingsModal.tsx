@@ -21,9 +21,9 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
 
   const strategies: { id: SplitStrategy; title: string; desc: string; icon: React.ReactNode; badge: string }[] = [
     {
-      id: 'row_alternate',
-      title: 'Row-wise Alternating',
-      desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
+      id: 'split_50_50',
+      title: 'Paired-Bench 50/50 Split',
+      desc: '15 Class 11 & 15 Class 12 of the same class (adjusts to class strength / room capacity), with paired-bench desks.',
       icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Recommended'
     },
@@ -33,6 +33,13 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
       desc: 'Assigns entire columns to alternating classes (e.g. Column 1: Grade 11, Column 2: Grade 12...).',
       icon: <Columns className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Column Pattern'
+    },
+    {
+      id: 'row_alternate',
+      title: 'Row-wise Alternating',
+      desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
+      icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
+      badge: 'Row Pattern'
     }
   ];
 
@@ -72,7 +79,7 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
               1. Room Mixing & Split Strategy
             </label>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {strategies.map((strat) => {
                 const isSelected = options.strategy === strat.id;
                 return (

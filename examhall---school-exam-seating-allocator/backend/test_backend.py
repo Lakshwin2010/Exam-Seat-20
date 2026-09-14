@@ -77,7 +77,7 @@ class TestExamHallBackend(unittest.TestCase):
         subjects = self.client.get("/api/subjects").json()
         self.assertGreater(len(subjects), 0)
         sess_payload = {
-            "name": "General Term Exam",
+            "name": f"General Term Exam {datetime.datetime.now().strftime('%H%M%S%f')}",
             "date": "2026-09-25",
             "timeSlot": "09:00 AM - 12:00 PM",
             "subjectIds": [subjects[0]["id"]]
@@ -194,23 +194,37 @@ class TestExamHallBackend(unittest.TestCase):
         plan = alloc_res.json()
         self.assertGreater(plan["stats"]["totalAssigned"], 0)
 
-        # Verify row-alternating pattern: Row 0 (11th), Row 1 (12th), Row 2 (11th), Row 3 (12th)...
+        # Verify 50/50 same-class paired allocation: 15 Class 11 & 15 Class 12 in Room XI - A (capacity 30)
         first_room = plan["roomAllocations"][0]
-        row_0 = [s for s in first_room["assignedSeats"] if s["row"] == 0 and s.get("studentId")]
-        row_1 = [s for s in first_room["assignedSeats"] if s["row"] == 1 and s.get("studentId")]
-        row_2 = [s for s in first_room["assignedSeats"] if s["row"] == 2 and s.get("studentId")]
-        row_3 = [s for s in first_room["assignedSeats"] if s["row"] == 3 and s.get("studentId")]
+        self.assertEqual(first_room["roomName"], "XI - A")
+        self.assertEqual(first_room["capacity"], 30)
+        self.assertEqual(first_room["totalAssigned"], 30)
 
-        for s in row_0:
-            self.assertTrue("XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper(), f"Row 0 must be Grade 11, got {s['studentGrade']}")
-        for s in row_1:
-            self.assertTrue("XII" in s["studentGrade"].upper(), f"Row 1 must be Grade 12, got {s['studentGrade']}")
-        for s in row_2:
-            self.assertTrue("XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper(), f"Row 2 must be Grade 11, got {s['studentGrade']}")
-        for s in row_3:
-            self.assertTrue("XII" in s["studentGrade"].upper(), f"Row 3 must be Grade 12, got {s['studentGrade']}")
+        g11_seats = [s for s in first_room["assignedSeats"] if s.get("studentGrade") and "XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper()]
+        g12_seats = [s for s in first_room["assignedSeats"] if s.get("studentGrade") and "XII" in s["studentGrade"].upper()]
 
-        print(f"[OK] Paired exam allocated: {plan['stats']['totalAssigned']} students seated in row-alternating layout (Row 0: 11th, Row 1: 12th, Row 2: 11th, Row 3: 12th)!")
+        self.assertEqual(len(g11_seats), 15, "Room XI-A must seat exactly 15 Class 11 students")
+        self.assertEqual(len(g12_seats), 15, "Room XI-A must seat exactly 15 Class 12 students")
+
+        # Verify all 15 Class 11 students are from the SAME class (XI - A)
+        for s in g11_seats:
+            self.assertEqual(s["studentGrade"], "XI - A", f"All Class 11 students in Room 1 must be from XI - A, got {s['studentGrade']}")
+
+        # Verify all 15 Class 12 students are from the SAME class (XII - A)
+        for s in g12_seats:
+            self.assertEqual(s["studentGrade"], "XII - A", f"All Class 12 students in Room 1 must be from XII - A, got {s['studentGrade']}")
+
+        # Verify dynamic change according to room capacity / class strength in Room XI - C (capacity 34)
+        xi_c_room = next((r for r in plan["roomAllocations"] if r["roomName"] == "XI - C"), None)
+        if xi_c_room:
+            xi_c_g11 = [s for s in xi_c_room["assignedSeats"] if s.get("studentGrade") and "XI" in s["studentGrade"].upper() and "XII" not in s["studentGrade"].upper()]
+            xi_c_g12 = [s for s in xi_c_room["assignedSeats"] if s.get("studentGrade") and "XII" in s["studentGrade"].upper()]
+            self.assertEqual(len(xi_c_g11), 17, "Room XI-C (capacity 34) must dynamically seat 17 Class 11 students")
+            self.assertEqual(len(xi_c_g12), 17, "Room XI-C (capacity 34) must dynamically seat 17 Class 12 students")
+
+        # Verify anti-cheating index
+        self.assertEqual(plan["stats"]["cheatPreventionIndex"], 100.0)
+        print(f"[OK] Paired exam verified: Room XI-A has 15 XI-A & 15 XII-A students, dynamically adjusts by class strength (XI-C has 17 & 17), 100% cheat prevention index!")
 
         # Verify dual-tab sheet with session_id
         sheet_res = self.client.get(f"/api/email/class-sheet/XI%20-%20A?session_id={session['id']}")

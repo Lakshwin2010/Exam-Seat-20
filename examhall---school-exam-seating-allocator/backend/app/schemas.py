@@ -136,7 +136,7 @@ class MonitoringDashboardStats(BaseModel):
 
 # --- ALLOCATION SCHEMAS ---
 class AllocationOptions(BaseModel):
-    strategy: str = "row_alternate"  # row_alternate: 11th in one row, 12th in next, 11th again
+    strategy: str = "split_50_50"  # split_50_50: 15 XI and 15 XII of same class for 30 capacity, paired-bench layout
     leftoverHandling: str = "distribute_evenly"
     avoidAdjacentSameSubject: bool = True
     benchPartnerDifferentGroup: bool = True
