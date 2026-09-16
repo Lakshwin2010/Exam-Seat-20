@@ -76,6 +76,22 @@ export interface MonitoringDashboardStats {
   }>;
 }
 
+export interface BackupSummary {
+  id: string;
+  timestamp: string;
+  createdAt: string;
+  fileSizeBytes: number;
+  summary: {
+    roomsCount: number;
+    studentsCount: number;
+    subjectsCount: number;
+    sessionsCount: number;
+    allocationsCount?: number;
+    monitoringCount?: number;
+  };
+  note?: string;
+}
+
 export const api = {
   async checkHealth(): Promise<boolean> {
     try {
@@ -349,6 +365,68 @@ export const api = {
       })
     });
     if (!res.ok) throw new Error('Failed to log incident');
+    return res.json();
+  },
+
+  // Backup & Recovery Endpoints
+  async createBackup(note = 'Manual backup'): Promise<any> {
+    const res = await fetch(`${API_BASE}/backup/create?note=${encodeURIComponent(note)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to create backup snapshot');
+    return res.json();
+  },
+
+  async syncAndBackup(note = 'Sync & Snapshot'): Promise<any> {
+    const res = await fetch(`${API_BASE}/backup/sync_and_backup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note })
+    });
+    if (!res.ok) throw new Error('Failed to sync and backup with backend');
+    return res.json();
+  },
+
+  async getBackups(): Promise<BackupSummary[]> {
+    const res = await fetch(`${API_BASE}/backup/list`);
+    if (!res.ok) throw new Error('Failed to list backups');
+    return res.json();
+  },
+
+  async restoreBackup(backupId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/backup/restore/${encodeURIComponent(backupId)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to restore backup' }));
+      throw new Error(err.detail || 'Failed to restore backup');
+    }
+    return res.json();
+  },
+
+  async deleteBackup(backupId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/backup/${encodeURIComponent(backupId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete backup');
+    return res.json();
+  },
+
+  getBackupDownloadUrl(backupId: string): string {
+    return `${API_BASE}/backup/download/${encodeURIComponent(backupId)}`;
+  },
+
+  async uploadBackup(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/backup/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to upload backup' }));
+      throw new Error(err.detail || 'Failed to upload backup');
+    }
     return res.json();
   }
 };

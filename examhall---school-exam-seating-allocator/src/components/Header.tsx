@@ -32,6 +32,7 @@ interface HeaderProps {
   onSignIn: () => void;
   onSignOut: () => void;
   onOpenEmailModal: () => void;
+  onOpenSyncBackup: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,7 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onSignIn,
   onSignOut,
-  onOpenEmailModal
+  onOpenEmailModal,
+  onOpenSyncBackup
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -155,6 +157,17 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Auto Allocate</span>
             </button>
 
+            {/* Sync & Backup Trigger */}
+            <button
+              id="btn-sync-backup"
+              onClick={onOpenSyncBackup}
+              title="Sync data with backend and create/restore recovery copies"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4 text-[#2563EB]" />
+              <span className="hidden sm:inline">Sync & Backup</span>
+            </button>
+
             {/* Email Class Sheets Quick Trigger */}
             <button
               id="btn-email-class-sheets"
@@ -261,7 +274,13 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Users className="w-4 h-4 text-[#2563EB]" /> Students
             </button>
-            <div className="px-1 pt-1">
+            <div className="px-1 pt-1 space-y-1">
+              <button
+                onClick={() => { onOpenSyncBackup(); setMobileMenuOpen(false); }}
+                className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
+              >
+                <RefreshCw className="w-4 h-4 text-[#2563EB]" /> Sync & Backup Data
+              </button>
               <button
                 onClick={() => { onOpenSettings(); setMobileMenuOpen(false); }}
                 className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
