@@ -276,6 +276,27 @@ class AllocationEngine:
                 taken_b = cur_xii_pool["list"][:take_b]
                 del cur_xii_pool["list"][:take_b]
 
+            # In case there are a few extra tables, put a few students of another class also
+            rem_capacity = capacity - (len(taken_a) + len(taken_b))
+            if rem_capacity > 0:
+                for next_pair_idx in range(current_pair_idx + 1, len(paired_list)):
+                    if rem_capacity <= 0:
+                        break
+                    nxt_xi, nxt_xii = paired_list[next_pair_idx]
+
+                    if rem_capacity > 0 and nxt_xi and nxt_xi["list"]:
+                        half_rem = math.ceil(rem_capacity / 2) if (nxt_xii and nxt_xii["list"]) else rem_capacity
+                        take_nxt_a = min(half_rem, len(nxt_xi["list"]))
+                        taken_a.extend(nxt_xi["list"][:take_nxt_a])
+                        del nxt_xi["list"][:take_nxt_a]
+                        rem_capacity = capacity - (len(taken_a) + len(taken_b))
+
+                    if rem_capacity > 0 and nxt_xii and nxt_xii["list"]:
+                        take_nxt_b = min(rem_capacity, len(nxt_xii["list"]))
+                        taken_b.extend(nxt_xii["list"][:take_nxt_b])
+                        del nxt_xii["list"][:take_nxt_b]
+                        rem_capacity = capacity - (len(taken_a) + len(taken_b))
+
             room_students_to_seat: List[Dict[str, Any]] = taken_a + taken_b
 
             # Separate special needs to put in front row

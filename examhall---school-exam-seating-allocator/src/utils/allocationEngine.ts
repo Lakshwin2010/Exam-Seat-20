@@ -346,6 +346,30 @@ export function runSeatingAllocation(
       takenB = curXIIPool!.list.splice(0, takeB);
     }
 
+    // In case there are a few extra tables, put a few students of another class also
+    let remTables = capacity - (takenA.length + takenB.length);
+    if (remTables > 0) {
+      for (let nextPairIdx = currentPairIdx + 1; nextPairIdx < pairedList.length; nextPairIdx++) {
+        if (remTables <= 0) break;
+        const nxtPair = pairedList[nextPairIdx];
+        const nxtXI = nxtPair.xiPool;
+        const nxtXII = nxtPair.xiiPool;
+
+        if (remTables > 0 && nxtXI && nxtXI.list.length > 0) {
+          const halfRem = (nxtXII && nxtXII.list.length > 0) ? Math.ceil(remTables / 2) : remTables;
+          const takeNxtA = Math.min(halfRem, nxtXI.list.length);
+          takenA.push(...nxtXI.list.splice(0, takeNxtA));
+          remTables = capacity - (takenA.length + takenB.length);
+        }
+
+        if (remTables > 0 && nxtXII && nxtXII.list.length > 0) {
+          const takeNxtB = Math.min(remTables, nxtXII.list.length);
+          takenB.push(...nxtXII.list.splice(0, takeNxtB));
+          remTables = capacity - (takenA.length + takenB.length);
+        }
+      }
+    }
+
     const roomStudentsToSeat = [...takenA, ...takenB];
     const frontStudents = roomStudentsToSeat.filter(s => s.student.specialNeeds && options.prioritizeSpecialNeedsFront);
     const regularA = takenA.filter(s => !(s.student.specialNeeds && options.prioritizeSpecialNeedsFront));
