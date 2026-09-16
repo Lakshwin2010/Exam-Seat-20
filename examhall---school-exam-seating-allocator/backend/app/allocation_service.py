@@ -154,10 +154,44 @@ class AllocationEngine:
         xii_pools.sort(key=lambda p: (p["section_key"], p["section"]))
 
         # Build matched section pairs (XI-A with XII-A, XI-B with XII-B, etc.)
+        # Special coordination for Senior Secondary Commerce wing (XI-G, XI-H, XII-G):
+        # XI-H is paired across Room XII-G (with XII-G) and Room XI-H (with XI-G) to ensure XI-H students are 100% mixed!
+        p_xi_h = next((p for p in xi_pools if p["section_key"] == "H"), None)
+        p_xi_g = next((p for p in xi_pools if p["section_key"] == "G"), None)
+        p_xii_g = next((p for p in xii_pools if p["section_key"] == "G"), None)
+
         paired_list: List[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]] = []
         unmatched_xii = list(xii_pools)
 
         for p_xi in xi_pools:
+            if p_xi["section_key"] == "H":
+                continue  # Handled in coordinated G/H cluster below
+
+            if p_xi["section_key"] == "G" and p_xi_h and p_xii_g:
+                if p_xii_g in unmatched_xii:
+                    unmatched_xii.remove(p_xii_g)
+
+                half_g_xi = math.ceil(len(p_xi_g["list"]) / 2)
+                half_g_xii = math.ceil(len(p_xii_g["list"]) / 2)
+                half_h_xi = min(half_g_xii, len(p_xi_h["list"])) if half_g_xii > 0 else math.ceil(len(p_xi_h["list"]) / 2)
+
+                xi_g_half1 = {"section": p_xi_g["section"], "section_key": "G", "list": p_xi_g["list"][:half_g_xi], "originalCount": half_g_xi, "subject": p_xi_g["subject"], "grade": p_xi_g["grade"]}
+                xi_g_half2 = {"section": p_xi_g["section"], "section_key": "G", "list": p_xi_g["list"][half_g_xi:], "originalCount": len(p_xi_g["list"]) - half_g_xi, "subject": p_xi_g["subject"], "grade": p_xi_g["grade"]}
+
+                xii_g_half1 = {"section": p_xii_g["section"], "section_key": "G", "list": p_xii_g["list"][:half_g_xii], "originalCount": half_g_xii, "subject": p_xii_g["subject"], "grade": p_xii_g["grade"]}
+                xii_g_half2 = {"section": p_xii_g["section"], "section_key": "G", "list": p_xii_g["list"][half_g_xii:], "originalCount": len(p_xii_g["list"]) - half_g_xii, "subject": p_xii_g["subject"], "grade": p_xii_g["grade"]}
+
+                xi_h_half1 = {"section": p_xi_h["section"], "section_key": "H", "list": p_xi_h["list"][:half_h_xi], "originalCount": half_h_xi, "subject": p_xi_h["subject"], "grade": p_xi_h["grade"]}
+                xi_h_half2 = {"section": p_xi_h["section"], "section_key": "H", "list": p_xi_h["list"][half_h_xi:], "originalCount": len(p_xi_h["list"]) - half_h_xi, "subject": p_xi_h["subject"], "grade": p_xi_h["grade"]}
+
+                # 1. Room XI-G gets (XI-G half 1, XII-G half 1) -> 16 XI-G & 16 XII-G
+                paired_list.append((xi_g_half1, xii_g_half1))
+                # 2. Room XII-G gets (XI-H half 1, XII-G half 2) -> 16 XI-H & 16 XII-G
+                paired_list.append((xi_h_half1, xii_g_half2))
+                # 3. Room XI-H gets (XI-H half 2, XI-G half 2) -> 17 XI-H & 16 XI-G
+                paired_list.append((xi_h_half2, xi_g_half2))
+                continue
+
             match_xii = next((p for p in unmatched_xii if p["section_key"] == p_xi["section_key"]), None)
             if match_xii:
                 unmatched_xii.remove(match_xii)

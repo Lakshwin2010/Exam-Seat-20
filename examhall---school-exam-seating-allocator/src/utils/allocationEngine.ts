@@ -208,10 +208,46 @@ export function runSeatingAllocation(
   xiiPools.sort((a, b) => a.sectionKey.localeCompare(b.sectionKey) || a.section.localeCompare(b.section));
 
   // Build matched section pairs (XI-A with XII-A, XI-B with XII-B, etc.)
+  // Special coordination for Senior Secondary Commerce wing (XI-G, XI-H, XII-G):
+  // XI-H is paired across Room XII-G (with XII-G) and Room XI-H (with XI-G) to ensure XI-H students are 100% mixed!
+  const pXIH = xiPools.find(p => p.sectionKey === 'H');
+  const pXIG = xiPools.find(p => p.sectionKey === 'G');
+  const pXIIG = xiiPools.find(p => p.sectionKey === 'G');
+
   const pairedList: Array<{ xiPool: SectionPool | null; xiiPool: SectionPool | null }> = [];
   const unmatchedXII = [...xiiPools];
 
   for (const pXI of xiPools) {
+    if (pXI.sectionKey === 'H') {
+      continue; // Handled in coordinated G/H cluster below
+    }
+
+    if (pXI.sectionKey === 'G' && pXIH && pXIIG) {
+      const gIdx = unmatchedXII.findIndex(p => p.sectionKey === 'G');
+      if (gIdx !== -1) unmatchedXII.splice(gIdx, 1);
+
+      const halfGXI = Math.ceil(pXIG.list.length / 2);
+      const halfGXII = Math.ceil(pXIIG.list.length / 2);
+      const halfHXI = halfGXII > 0 ? Math.min(halfGXII, pXIH.list.length) : Math.ceil(pXIH.list.length / 2);
+
+      const xiGHalf1: SectionPool = { ...pXIG, list: pXIG.list.slice(0, halfGXI), originalCount: halfGXI };
+      const xiGHalf2: SectionPool = { ...pXIG, list: pXIG.list.slice(halfGXI), originalCount: pXIG.list.length - halfGXI };
+
+      const xiiGHalf1: SectionPool = { ...pXIIG, list: pXIIG.list.slice(0, halfGXII), originalCount: halfGXII };
+      const xiiGHalf2: SectionPool = { ...pXIIG, list: pXIIG.list.slice(halfGXII), originalCount: pXIIG.list.length - halfGXII };
+
+      const xiHHalf1: SectionPool = { ...pXIH, list: pXIH.list.slice(0, halfHXI), originalCount: halfHXI };
+      const xiHHalf2: SectionPool = { ...pXIH, list: pXIH.list.slice(halfHXI), originalCount: pXIH.list.length - halfHXI };
+
+      // 1. Room XI-G gets (XI-G half 1, XII-G half 1) -> 16 XI-G & 16 XII-G
+      pairedList.push({ xiPool: xiGHalf1, xiiPool: xiiGHalf1 });
+      // 2. Room XII-G gets (XI-H half 1, XII-G half 2) -> 16 XI-H & 16 XII-G
+      pairedList.push({ xiPool: xiHHalf1, xiiPool: xiiGHalf2 });
+      // 3. Room XI-H gets (XI-H half 2, XI-G half 2) -> 17 XI-H & 16 XI-G
+      pairedList.push({ xiPool: xiHHalf2, xiiPool: xiGHalf2 });
+      continue;
+    }
+
     const matchIdx = unmatchedXII.findIndex(p => p.sectionKey === pXI.sectionKey);
     if (matchIdx !== -1) {
       const matchXII = unmatchedXII.splice(matchIdx, 1)[0];
