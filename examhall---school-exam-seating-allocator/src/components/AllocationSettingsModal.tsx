@@ -21,9 +21,9 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
 
   const strategies: { id: SplitStrategy; title: string; desc: string; icon: React.ReactNode; badge: string }[] = [
     {
-      id: 'row_alternate',
-      title: 'Row-wise Alternating',
-      desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
+      id: 'checkerboard_mix',
+      title: 'Single-Section 50/50 Dual Alternating',
+      desc: 'Strictly 1 section of 11th and 1 section of 12th per room (15 XI & 15 XII in 30 seats) with alternating desk pairs.',
       icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Recommended'
     },
@@ -33,6 +33,13 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
       desc: 'Assigns entire columns to alternating classes (e.g. Column 1: Grade 11, Column 2: Grade 12...).',
       icon: <Columns className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Column Pattern'
+    },
+    {
+      id: 'row_alternate',
+      title: 'Row-wise Alternating',
+      desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
+      icon: <Shuffle className="w-5 h-5 text-[#2563EB]" />,
+      badge: 'Row Pattern'
     }
   ];
 

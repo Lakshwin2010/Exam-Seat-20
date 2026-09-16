@@ -136,7 +136,7 @@ class MonitoringDashboardStats(BaseModel):
 
 # --- ALLOCATION SCHEMAS ---
 class AllocationOptions(BaseModel):
-    strategy: str = "row_alternate"  # row_alternate: 11th in one row, 12th in next, 11th again
+    strategy: str = "checkerboard_mix"  # checkerboard_mix: 11th and 12th alternating 50/50 per room
     leftoverHandling: str = "distribute_evenly"
     avoidAdjacentSameSubject: bool = True
     benchPartnerDifferentGroup: bool = True
