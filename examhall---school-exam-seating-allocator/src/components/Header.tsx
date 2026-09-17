@@ -4,7 +4,6 @@ import {
   Users, 
   Calendar, 
   Search, 
-  Sliders, 
   Sparkles, 
   Layers, 
   Menu, 
@@ -24,7 +23,7 @@ interface HeaderProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   onOpenSearch: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   onGeneratePlan: () => void;
   isAllocating: boolean;
   totalStudentsSeated: number;
@@ -79,17 +78,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </button>
-
-          {/* Strategy rules */}
-          <div className="hidden lg:flex items-center gap-2">
-             <button
-              onClick={onOpenSettings}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] transition-colors cursor-pointer"
-             >
-               <Sliders className="w-4 h-4 text-[#2563EB]" />
-               <span>Strategy Settings</span>
-             </button>
-          </div>
 
           {/* Center: Main Navigation Tabs (Desktop & Tablet) */}
           <nav className="hidden md:flex items-center p-1 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
@@ -306,12 +294,6 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
               >
                 <RefreshCw className="w-4 h-4 text-[#2563EB]" /> Sync & Backup Data
-              </button>
-              <button
-                onClick={() => { onOpenSettings(); setMobileMenuOpen(false); }}
-                className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
-              >
-                <Sliders className="w-4 h-4 text-[#2563EB]" /> Strategy Settings
               </button>
             </div>
           </div>
