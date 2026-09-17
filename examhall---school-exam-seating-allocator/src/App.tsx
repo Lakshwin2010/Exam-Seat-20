@@ -32,6 +32,7 @@ import { ExamCalendarView } from './components/ExamCalendarView';
 import { LandingPageView } from './components/LandingPageView';
 import { EmailClassSheetsModal } from './components/EmailClassSheetsModal';
 import { BackupRecoveryModal } from './components/BackupRecoveryModal';
+import { WhatsAppBroadcastModal } from './components/WhatsAppBroadcastModal';
 import { GoogleUser, getStoredUser, signInWithGoogle, signOutGoogle } from './utils/googleAuth';
 import { api } from './utils/api';
 import { Sparkles, Layers, Building2, Users, BookOpen, Plus, UploadCloud, RefreshCw, FileSpreadsheet, Database, Calendar, Clock, Home } from 'lucide-react';
@@ -130,6 +131,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => getStoredUser());
   const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState<boolean>(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
 
   // Backend & Source Folder Sync State
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
@@ -445,6 +447,7 @@ export default function App() {
         }}
         onOpenEmailModal={() => setIsEmailModalOpen(true)}
         onOpenSyncBackup={() => setIsBackupModalOpen(true)}
+        onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -708,6 +711,14 @@ export default function App() {
         currentStudents={students}
         currentSubjects={subjects}
         currentSessions={sessions}
+      />
+
+      {/* WhatsApp Group Broadcast & Dispatch PDFs Modal */}
+      <WhatsAppBroadcastModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
       />
 
       <div className="md:hidden sticky bottom-0 z-20 bg-white/95 backdrop-blur border-t border-[#E2E8F0] p-2.5 flex items-center justify-around gap-2 no-print">
