@@ -38,7 +38,7 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
       id: 'row_alternate',
       title: 'Row-wise Alternating',
       desc: '11th in one row, 12th in the next row, and 11th again (Row A: 11th, Row B: 12th, Row C: 11th...).',
-      icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
+      icon: <Shuffle className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Row Pattern'
     }
   ];

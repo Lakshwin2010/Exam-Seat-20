@@ -76,8 +76,9 @@ class TestExamHallBackend(unittest.TestCase):
         # Simulate creating an exam schedule dynamically from the web
         subjects = self.client.get("/api/subjects").json()
         self.assertGreater(len(subjects), 0)
+        sess_name = f"General Term Exam {datetime.datetime.now().strftime('%H%M%S%f')}"
         sess_payload = {
-            "name": f"General Term Exam {datetime.datetime.now().strftime('%H%M%S%f')}",
+            "name": sess_name,
             "date": "2026-09-25",
             "timeSlot": "09:00 AM - 12:00 PM",
             "subjectIds": [subjects[0]["id"]]
@@ -233,6 +234,36 @@ class TestExamHallBackend(unittest.TestCase):
         self.assertGreater(sheet_data["roomSeatsCount"], 0)
         self.assertGreater(sheet_data["despatchCount"], 0)
         print(f"[OK] Dual-report verified for XI-A in session: {sheet_data['roomSeatsCount']} in-room seats, {sheet_data['despatchCount']} dispatched")
+
+    def test_10_dispatch_pdf_and_whatsapp(self):
+        # 1. Test dispatch PDF download and inline view for XI-A
+        pdf_res = self.client.get("/api/email/dispatch-pdf/XI%20-%20A?download=true")
+        self.assertEqual(pdf_res.status_code, 200)
+        self.assertEqual(pdf_res.headers["content-type"], "application/pdf")
+        self.assertTrue(len(pdf_res.content) > 1000)
+        self.assertTrue(pdf_res.content.startswith(b"%PDF"))
+        print(f"[OK] Dispatch PDF generated for XI-A: {len(pdf_res.content)} bytes, valid PDF header")
+
+        # 2. Test dispatch PDF for XI-H (Triangular cluster room)
+        pdf_res_h = self.client.get("/api/email/dispatch-pdf/XI%20-%20H")
+        self.assertEqual(pdf_res_h.status_code, 200)
+        self.assertTrue(len(pdf_res_h.content) > 1000)
+        print(f"[OK] Dispatch PDF generated for XI-H: {len(pdf_res_h.content)} bytes")
+
+        # 3. Test WhatsApp notices endpoint
+        wa_res = self.client.get("/api/email/whatsapp/notices")
+        self.assertEqual(wa_res.status_code, 200)
+        wa_data = wa_res.json()
+        self.assertEqual(wa_data["status"], "success")
+        self.assertEqual(len(wa_data["sections"]), 15)
+        
+        # Verify first section has roomSplits and valid WhatsApp text
+        sec0 = wa_data["sections"][0]
+        self.assertIn("roomSplits", sec0)
+        self.assertGreater(len(sec0["roomSplits"]), 0)
+        self.assertIn("whatsappText", sec0)
+        self.assertIn("pdfUrl", sec0)
+        print(f"[OK] WhatsApp notices verified for all {len(wa_data['sections'])} sections with room splits and direct links")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

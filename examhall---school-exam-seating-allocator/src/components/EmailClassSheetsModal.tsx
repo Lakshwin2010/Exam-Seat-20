@@ -236,6 +236,14 @@ export const EmailClassSheetsModal: React.FC<EmailClassSheetsModalProps> = ({
     window.open(url, '_blank');
   };
 
+  // Download official Dispatch PDF directly
+  const handleDownloadPdf = (section: string) => {
+    const url = currentSessionId 
+      ? `/api/email/dispatch-pdf/${encodeURIComponent(section)}?download=true&session_id=${encodeURIComponent(currentSessionId)}`
+      : `/api/email/dispatch-pdf/${encodeURIComponent(section)}?download=true`;
+    window.open(url, '_blank');
+  };
+
   const configuredCount = displayedSections.filter(s => s.email.trim().length > 0).length;
 
   return (
@@ -541,6 +549,16 @@ export const EmailClassSheetsModal: React.FC<EmailClassSheetsModalProps> = ({
                         {/* Actions */}
                         <td className="py-2.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Download Official Dispatch PDF Button */}
+                            <button
+                              onClick={() => handleDownloadPdf(sec.section)}
+                              title={`Download ${sec.section} Official Class Outward Exam Dispatch PDF`}
+                              className="p-1.5 rounded-lg border border-[#DBEAFE] text-[#1D4ED8] bg-[#EFF6FF] hover:bg-[#DBEAFE] transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold hidden md:inline">PDF</span>
+                            </button>
+
                             {/* Download 2-Tab Workbook Button */}
                             <button
                               onClick={() => handleDownloadSheet(sec.section)}

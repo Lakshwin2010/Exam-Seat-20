@@ -18,7 +18,8 @@ import {
   Sparkles,
   Search,
   GraduationCap,
-  Mail
+  Mail,
+  Shield
 } from 'lucide-react';
 import { ExamRoom, Student, ExamSubject, ExamSession } from '../types';
 import { 
@@ -44,6 +45,7 @@ interface DataManagementProps {
   onSyncFolder?: () => Promise<void>;
   isSyncingFolder?: boolean;
   onOpenEmailModal?: () => void;
+  onOpenBackupModal?: () => void;
 }
 
 export const DataManagement: React.FC<DataManagementProps> = ({
@@ -58,7 +60,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({
   initialSubTab = 'students',
   onSyncFolder,
   isSyncingFolder,
-  onOpenEmailModal
+  onOpenEmailModal,
+  onOpenBackupModal
 }) => {
   const [subTab, setSubTab] = useState<'rooms' | 'students' | 'subjects' | 'import_export'>(initialSubTab || 'rooms');
 
@@ -356,6 +359,17 @@ export const DataManagement: React.FC<DataManagementProps> = ({
             >
               <RefreshCw className={`w-3.5 h-3.5 text-[#2563EB] ${isSyncingFolder ? 'animate-spin' : ''}`} />
               <span>{isSyncingFolder ? 'Syncing...' : 'Sync Source Folder'}</span>
+            </button>
+          )}
+
+          {onOpenBackupModal && (
+            <button
+              onClick={onOpenBackupModal}
+              title="Sync live data with backend and create/restore recovery copies"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#2563EB] bg-[#2563EB]/10 hover:bg-[#2563EB]/20 border border-[#2563EB]/30 transition-colors shrink-0 cursor-pointer"
+            >
+              <Shield className="w-3.5 h-3.5 text-[#2563EB]" />
+              <span>Sync & Backups</span>
             </button>
           )}
         </div>

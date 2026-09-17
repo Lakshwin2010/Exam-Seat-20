@@ -31,6 +31,8 @@ import { StudentMonitoringView } from './components/StudentMonitoringView';
 import { ExamCalendarView } from './components/ExamCalendarView';
 import { LandingPageView } from './components/LandingPageView';
 import { EmailClassSheetsModal } from './components/EmailClassSheetsModal';
+import { BackupRecoveryModal } from './components/BackupRecoveryModal';
+import { WhatsAppBroadcastModal } from './components/WhatsAppBroadcastModal';
 import { GoogleUser, getStoredUser, signInWithGoogle, signOutGoogle } from './utils/googleAuth';
 import { api } from './utils/api';
 import { Sparkles, Layers, Building2, Users, BookOpen, Plus, UploadCloud, RefreshCw, FileSpreadsheet, Database, Calendar, Clock, Home } from 'lucide-react';
@@ -134,6 +136,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => getStoredUser());
   const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState<boolean>(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
 
   // Backend & Source Folder Sync State
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
@@ -209,6 +213,30 @@ export default function App() {
     } finally {
       setIsSyncingSource(false);
     }
+  };
+
+  // Restore Handler from Recovery Snapshot
+  const handleDataRestored = (restored: {
+    rooms: ExamRoom[];
+    students: Student[];
+    subjects: ExamSubject[];
+    sessions: ExamSession[];
+  }) => {
+    setRooms(restored.rooms);
+    setStudents(restored.students);
+    setSubjects(restored.subjects);
+    setSessions(restored.sessions);
+    if (restored.sessions.length > 0) {
+      setSelectedSessionId(restored.sessions[0].id);
+    } else {
+      setSelectedSessionId('');
+    }
+    setCurrentPlan(null);
+    setSyncStatusBanner({
+      type: 'success',
+      text: `Data successfully recovered! Loaded ${restored.students.length} students across ${restored.rooms.length} classrooms.`
+    });
+    setTimeout(() => setSyncStatusBanner(null), 6000);
   };
 
   // Sync to LocalStorage
@@ -424,6 +452,8 @@ export default function App() {
           setCurrentUser(null);
         }}
         onOpenEmailModal={() => setIsEmailModalOpen(true)}
+        onOpenSyncBackup={() => setIsBackupModalOpen(true)}
+        onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -613,6 +643,9 @@ export default function App() {
               setSessions={setSessions}
               onResetToSampleData={handleResetToSampleData}
               onOpenEmailModal={() => setIsEmailModalOpen(true)}
+              onOpenBackupModal={() => setIsBackupModalOpen(true)}
+              onSyncFolder={backendConnected ? handleSyncFromSourceFolder : undefined}
+              isSyncingFolder={isSyncingSource}
             />
           </div>
         )}
@@ -670,6 +703,26 @@ export default function App() {
         onClose={() => setIsEmailModalOpen(false)}
         currentUser={currentUser}
         onSignInSuccess={(user) => setCurrentUser(user)}
+        sessions={sessions}
+        selectedSessionId={selectedSessionId}
+      />
+
+      {/* Backend Sync & Recovery Modal */}
+      <BackupRecoveryModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        onDataRestored={handleDataRestored}
+        onSyncTriggered={backendConnected ? handleSyncFromSourceFolder : undefined}
+        currentRooms={rooms}
+        currentStudents={students}
+        currentSubjects={subjects}
+        currentSessions={sessions}
+      />
+
+      {/* WhatsApp Group Broadcast & Dispatch PDFs Modal */}
+      <WhatsAppBroadcastModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
         sessions={sessions}
         selectedSessionId={selectedSessionId}
       />

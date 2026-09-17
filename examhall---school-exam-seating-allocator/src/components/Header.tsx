@@ -4,7 +4,6 @@ import {
   Users, 
   Calendar, 
   Search, 
-  Sliders, 
   Sparkles, 
   Layers, 
   Menu, 
@@ -13,7 +12,8 @@ import {
   Home,
   Mail,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  MessageCircle
 } from 'lucide-react';
 import { GoogleUser } from '../utils/googleAuth';
 
@@ -23,7 +23,7 @@ interface HeaderProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   onOpenSearch: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   onGeneratePlan: () => void;
   isAllocating: boolean;
   totalStudentsSeated: number;
@@ -32,6 +32,8 @@ interface HeaderProps {
   onSignIn: () => void;
   onSignOut: () => void;
   onOpenEmailModal: () => void;
+  onOpenSyncBackup: () => void;
+  onOpenWhatsAppModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,7 +47,9 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onSignIn,
   onSignOut,
-  onOpenEmailModal
+  onOpenEmailModal,
+  onOpenSyncBackup,
+  onOpenWhatsAppModal
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -74,17 +78,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </button>
-
-          {/* Strategy rules */}
-          <div className="hidden lg:flex items-center gap-2">
-             <button
-              onClick={onOpenSettings}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] transition-colors cursor-pointer"
-             >
-               <Sliders className="w-4 h-4 text-[#2563EB]" />
-               <span>Strategy Settings</span>
-             </button>
-          </div>
 
           {/* Center: Main Navigation Tabs (Desktop & Tablet) */}
           <nav className="hidden md:flex items-center p-1 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
@@ -155,6 +148,17 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Auto Allocate</span>
             </button>
 
+            {/* Sync & Backup Trigger */}
+            <button
+              id="btn-sync-backup"
+              onClick={onOpenSyncBackup}
+              title="Sync data with backend and create/restore recovery copies"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4 text-[#2563EB]" />
+              <span className="hidden sm:inline">Sync & Backup</span>
+            </button>
+
             {/* Email Class Sheets Quick Trigger */}
             <button
               id="btn-email-class-sheets"
@@ -164,6 +168,17 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Mail className="w-4 h-4 text-[#2563EB]" />
               <span className="hidden lg:inline">Email Sheets</span>
+            </button>
+
+            {/* WhatsApp Broadcast Quick Trigger */}
+            <button
+              id="btn-whatsapp-broadcast"
+              onClick={onOpenWhatsAppModal}
+              title="Broadcast Exam Notices and Dispatch PDFs to WhatsApp Groups"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#15803D] bg-[#DCFCE7] hover:bg-[#BBF7D0] border border-[#86EFAC] transition-all cursor-pointer shadow-2xs"
+            >
+              <MessageCircle className="w-4 h-4 text-[#16A34A]" />
+              <span className="hidden sm:inline">WhatsApp</span>
             </button>
 
             {/* Google Sign In / User Profile in the Corner */}
@@ -261,12 +276,24 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Users className="w-4 h-4 text-[#2563EB]" /> Students
             </button>
-            <div className="px-1 pt-1">
+            <div className="px-1 pt-1 space-y-1">
               <button
-                onClick={() => { onOpenSettings(); setMobileMenuOpen(false); }}
+                onClick={() => { onOpenWhatsAppModal(); setMobileMenuOpen(false); }}
+                className="w-full px-3 py-2 bg-[#DCFCE7] rounded-xl border border-[#86EFAC] flex items-center gap-2 text-xs font-bold text-[#15803D]"
+              >
+                <MessageCircle className="w-4 h-4 text-[#16A34A]" /> WhatsApp Broadcast & PDFs
+              </button>
+              <button
+                onClick={() => { onOpenEmailModal(); setMobileMenuOpen(false); }}
                 className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
               >
-                <Sliders className="w-4 h-4 text-[#2563EB]" /> Strategy Settings
+                <Mail className="w-4 h-4 text-[#2563EB]" /> Email Sheets
+              </button>
+              <button
+                onClick={() => { onOpenSyncBackup(); setMobileMenuOpen(false); }}
+                className="w-full px-3 py-2 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#0F172A]"
+              >
+                <RefreshCw className="w-4 h-4 text-[#2563EB]" /> Sync & Backup Data
               </button>
             </div>
           </div>

@@ -17,7 +17,8 @@ from app.routers import (
     subjects,
     sessions,
     allocations,
-    email_router
+    email_router,
+    backup
 )
 
 @asynccontextmanager
@@ -66,6 +67,7 @@ app.include_router(subjects.router)
 app.include_router(sessions.router)
 app.include_router(allocations.router)
 app.include_router(email_router.router)
+app.include_router(backup.router)
 
 @app.get("/api")
 def api_root():

@@ -15,6 +15,15 @@ CANONICAL_SUBJECT_MAP = {
     'ENGLISH': ('ENG', 'English Core', '#2563EB'),
     'MATH': ('MATH', 'Mathematics', '#DC2626'),
     'MATHEMATICS': ('MATH', 'Mathematics', '#DC2626'),
+    'MATH-CS': ('MATH', 'Mathematics', '#DC2626'),
+    'MATH-NCS': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'MATH-NC': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'MATHEMATICS (NON-CS)': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'MATHEMATICS (NON-COMPUTER)': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'MATH (NON-CS)': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'MATH (NON-COMPUTER)': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'NON-CS MATH': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
+    'NON CS MATH': ('MATH-NCS', 'Mathematics (Non-CS)', '#BE123C'),
     'A.M': ('A.M', 'Applied Mathematics', '#E11D48'),
     'AM': ('A.M', 'Applied Mathematics', '#E11D48'),
     'AMATH': ('A.M', 'Applied Mathematics', '#E11D48'),
@@ -593,6 +602,15 @@ class ExcelService:
                         sub_obj = get_or_create_subject(s_text)
                         if sub_obj and sub_obj not in enrolled_objs:
                             enrolled_objs.append(sub_obj)
+
+            # If student has MATH but does not take Computer Science (CS),
+            # assign Mathematics (Non-CS) so this exam is written by non-computer students
+            if enrolled_objs:
+                has_cs = any(s.code.upper() == "CS" for s in enrolled_objs)
+                has_math = any(s.code.upper() == "MATH" for s in enrolled_objs)
+                if has_math and not has_cs:
+                    math_ncs_obj = get_or_create_subject("MATH-NCS")
+                    enrolled_objs = [math_ncs_obj if s.code.upper() == "MATH" else s for s in enrolled_objs]
 
             student_id = f"stud-{roll_str.lower().replace(' ', '-')}"
             existing = db.query(models.Student).filter(

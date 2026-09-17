@@ -81,7 +81,8 @@ The backend natively parses the exact school roster format:
 - **Footer Protection**: Footers and teacher tags (e.g. `TOTAL`, `CT: Class Teacher`, `ACT: Asst Teacher`) are automatically detected and omitted from student rosters.
 - **Subject Normalization**:
   - `Eng` -> English Core
-  - `Math` -> Mathematics
+  - `Math` -> Mathematics (Computer Science)
+  - `MATH-NCS` -> Mathematics (Non-CS) (Exam written by non-Computer students)
   - `A.M` -> Applied Mathematics
   - `Phy` -> Physics
   - `Che` -> Chemistry
