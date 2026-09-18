@@ -21,9 +21,9 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
 
   const strategies: { id: SplitStrategy; title: string; desc: string; icon: React.ReactNode; badge: string }[] = [
     {
-      id: 'checkerboard_mix',
-      title: 'Single-Section 50/50 Dual Alternating',
-      desc: 'Strictly 1 section of 11th and 1 section of 12th per room (15 XI & 15 XII in 30 seats) with alternating desk pairs.',
+      id: 'split_50_50',
+      title: 'Paired-Bench 50/50 Split',
+      desc: '15 Class 11 & 15 Class 12 of the same class (adjusts to class strength / room capacity), with paired-bench desks.',
       icon: <Grid className="w-5 h-5 text-[#2563EB]" />,
       badge: 'Recommended'
     },
@@ -79,7 +79,7 @@ export const AllocationSettingsModal: React.FC<AllocationSettingsModalProps> = (
               1. Room Mixing & Split Strategy
             </label>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {strategies.map((strat) => {
                 const isSelected = options.strategy === strat.id;
                 return (

@@ -136,7 +136,7 @@ class MonitoringDashboardStats(BaseModel):
 
 # --- ALLOCATION SCHEMAS ---
 class AllocationOptions(BaseModel):
-    strategy: str = "checkerboard_mix"  # checkerboard_mix: 11th and 12th alternating 50/50 per room
+    strategy: str = "split_50_50"  # split_50_50: 15 XI and 15 XII of same class for 30 capacity, paired-bench layout
     leftoverHandling: str = "distribute_evenly"
     avoidAdjacentSameSubject: bool = True
     benchPartnerDifferentGroup: bool = True

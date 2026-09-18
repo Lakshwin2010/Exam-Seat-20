@@ -95,32 +95,16 @@ class AllocationEngine:
                         "subject": chosen
                     })
 
-        # Helpers to identify grade level and section
-        def is_xi(g: str) -> bool:
-            u = (g or "").upper()
-            return "XI" in u and "XII" not in u
-
-        def is_xii(g: str) -> bool:
-            return "XII" in (g or "").upper()
-
-        def extract_section_key(g: str) -> str:
-            parts = (g or "").replace("-", " ").split()
-            for p in reversed(parts):
-                p_clean = p.strip().upper()
-                if p_clean and p_clean not in ["XI", "XII", "GRADE", "CLASS", "SECTION"]:
-                    return p_clean
-            return (g or "").strip().upper()
-
-        # 2. Group candidates strictly by Section (e.g. XI - A, XI - B, XII - A, XII - B...)
-        section_map: Dict[str, List[Dict[str, Any]]] = {}
+        # 2. Group candidates by Subject Code & Grade
+        group_map: Dict[str, List[Dict[str, Any]]] = {}
         for c in candidates:
-            sec_name = c["student"].grade or "General"
-            if sec_name not in section_map:
-                section_map[sec_name] = []
-            section_map[sec_name].append(c)
+            key = f"{c['subject'].code}_{c['student'].grade}"
+            if key not in group_map:
+                group_map[key] = []
+            group_map[key].append(c)
 
-        # Sort students inside each section (special needs first, then roll number)
-        for sec_name, members in section_map.items():
+        # Sort within each group (special needs first if prioritized, then roll number)
+        for key, members in group_map.items():
             members.sort(
                 key=lambda x: (
                     0 if (options.prioritizeSpecialNeedsFront and x["student"].special_needs) else 1,
@@ -128,88 +112,26 @@ class AllocationEngine:
                 )
             )
 
-        # Separate pools for Class 11 and Class 12 sections
-        xi_pools: List[Dict[str, Any]] = []
-        xii_pools: List[Dict[str, Any]] = []
-        other_pools: List[Dict[str, Any]] = []
+        # Create pools sorted in natural section order (XI - A, XI - B ... XII - A, XII - B ...)
+        import re
+        def section_sort_key(p):
+            g = (p.get("grade") or "").upper()
+            is_xii = "XII" in g
+            is_xi = "XI" in g and not is_xii
+            m = re.search(r'[-–\s]([A-Z])\b', g)
+            sec = m.group(1) if m else g
+            return (0 if is_xi else (1 if is_xii else 2), sec, g, p.get("key", ""))
 
-        for sec_name, members in section_map.items():
-            pool_item = {
-                "section": sec_name,
-                "section_key": extract_section_key(sec_name),
+        pools = []
+        for key, members in group_map.items():
+            pools.append({
+                "key": key,
                 "list": list(members),
-                "originalCount": len(members),
-                "subject": members[0]["subject"] if members else None,
-                "grade": sec_name
-            }
-            if is_xi(sec_name):
-                xi_pools.append(pool_item)
-            elif is_xii(sec_name):
-                xii_pools.append(pool_item)
-            else:
-                other_pools.append(pool_item)
-
-        # Sort section pools alphabetically by section key (A, B, C...)
-        xi_pools.sort(key=lambda p: (p["section_key"], p["section"]))
-        xii_pools.sort(key=lambda p: (p["section_key"], p["section"]))
-
-        # Build matched section pairs (XI-A with XII-A, XI-B with XII-B, etc.)
-        # Special coordination for Senior Secondary Commerce wing (XI-G, XI-H, XII-G):
-        # XI-H is paired across Room XII-G (with XII-G) and Room XI-H (with XI-G) to ensure XI-H students are 100% mixed!
-        p_xi_h = next((p for p in xi_pools if p["section_key"] == "H"), None)
-        p_xi_g = next((p for p in xi_pools if p["section_key"] == "G"), None)
-        p_xii_g = next((p for p in xii_pools if p["section_key"] == "G"), None)
-
-        paired_list: List[Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]] = []
-        unmatched_xii = list(xii_pools)
-
-        for p_xi in xi_pools:
-            if p_xi["section_key"] == "H":
-                continue  # Handled in coordinated G/H cluster below
-
-            if p_xi["section_key"] == "G" and p_xi_h and p_xii_g:
-                if p_xii_g in unmatched_xii:
-                    unmatched_xii.remove(p_xii_g)
-
-                half_g_xi = math.ceil(len(p_xi_g["list"]) / 2)
-                half_g_xii = math.ceil(len(p_xii_g["list"]) / 2)
-                half_h_xi = min(half_g_xii, len(p_xi_h["list"])) if half_g_xii > 0 else math.ceil(len(p_xi_h["list"]) / 2)
-
-                xi_g_half1 = {"section": p_xi_g["section"], "section_key": "G", "list": p_xi_g["list"][:half_g_xi], "originalCount": half_g_xi, "subject": p_xi_g["subject"], "grade": p_xi_g["grade"]}
-                xi_g_half2 = {"section": p_xi_g["section"], "section_key": "G", "list": p_xi_g["list"][half_g_xi:], "originalCount": len(p_xi_g["list"]) - half_g_xi, "subject": p_xi_g["subject"], "grade": p_xi_g["grade"]}
-
-                xii_g_half1 = {"section": p_xii_g["section"], "section_key": "G", "list": p_xii_g["list"][:half_g_xii], "originalCount": half_g_xii, "subject": p_xii_g["subject"], "grade": p_xii_g["grade"]}
-                xii_g_half2 = {"section": p_xii_g["section"], "section_key": "G", "list": p_xii_g["list"][half_g_xii:], "originalCount": len(p_xii_g["list"]) - half_g_xii, "subject": p_xii_g["subject"], "grade": p_xii_g["grade"]}
-
-                xi_h_half1 = {"section": p_xi_h["section"], "section_key": "H", "list": p_xi_h["list"][:half_h_xi], "originalCount": half_h_xi, "subject": p_xi_h["subject"], "grade": p_xi_h["grade"]}
-                xi_h_half2 = {"section": p_xi_h["section"], "section_key": "H", "list": p_xi_h["list"][half_h_xi:], "originalCount": len(p_xi_h["list"]) - half_h_xi, "subject": p_xi_h["subject"], "grade": p_xi_h["grade"]}
-
-                # 1. Room XI-G gets (XI-G half 1, XII-G half 1) -> 16 XI-G & 16 XII-G
-                paired_list.append((xi_g_half1, xii_g_half1))
-                # 2. Room XII-G gets (XI-H half 1, XII-G half 2) -> 16 XI-H & 16 XII-G
-                paired_list.append((xi_h_half1, xii_g_half2))
-                # 3. Room XI-H gets (XI-H half 2, XI-G half 2) -> 17 XI-H & 16 XI-G
-                paired_list.append((xi_h_half2, xi_g_half2))
-                continue
-
-            match_xii = next((p for p in unmatched_xii if p["section_key"] == p_xi["section_key"]), None)
-            if match_xii:
-                unmatched_xii.remove(match_xii)
-                paired_list.append((p_xi, match_xii))
-            else:
-                if unmatched_xii:
-                    paired_list.append((p_xi, unmatched_xii.pop(0)))
-                else:
-                    paired_list.append((p_xi, None))
-
-        for p_xii in unmatched_xii:
-            paired_list.append((None, p_xii))
-
-        for p_oth in other_pools:
-            paired_list.append((p_oth, None))
-
-        all_section_pools = xi_pools + xii_pools + other_pools
-        pools = all_section_pools
+                "subject": members[0]["subject"],
+                "grade": members[0]["student"].grade,
+                "originalCount": len(members)
+            })
+        pools.sort(key=section_sort_key)
 
         room_allocations: List[schemas.RoomAllocation] = []
         unassigned_students: List[schemas.UnassignedStudent] = []
@@ -218,45 +140,11 @@ class AllocationEngine:
         # Clear existing allocations for this session in DB
         db.query(models.SeatAllocation).filter(models.SeatAllocation.session_id == session_id).delete()
 
-        # Order active rooms so matching section rooms are paired together (e.g. XI - A, XII - A, XI - B, XII - B...)
-        rooms_by_sec: Dict[str, List[models.ExamRoom]] = {}
-        generic_rooms: List[models.ExamRoom] = []
-        for r in active_rooms:
-            r_sec = extract_section_key(r.name)
-            if is_xi(r.name) or is_xii(r.name):
-                if r_sec not in rooms_by_sec:
-                    rooms_by_sec[r_sec] = []
-                rooms_by_sec[r_sec].append(r)
-            else:
-                generic_rooms.append(r)
-
-        ordered_rooms: List[models.ExamRoom] = []
-        for sk in sorted(rooms_by_sec.keys()):
-            sec_rooms = rooms_by_sec[sk]
-            sec_rooms.sort(key=lambda r: (0 if is_xi(r.name) else 1, r.name))
-            ordered_rooms.extend(sec_rooms)
-        ordered_rooms.extend(generic_rooms)
-
-        if not ordered_rooms:
-            ordered_rooms = list(active_rooms)
-
-        # 3. Allocate Room by Room: strictly 1 section of Class 11 and 1 section of Class 12 per room
-        current_pair_idx = 0
-
-        for room in ordered_rooms:
-            # Advance to next section pair if current pair is exhausted
-            while current_pair_idx < len(paired_list):
-                p_a, p_b = paired_list[current_pair_idx]
-                rem_a = len(p_a["list"]) if p_a else 0
-                rem_b = len(p_b["list"]) if p_b else 0
-                if rem_a > 0 or rem_b > 0:
-                    break
-                current_pair_idx += 1
-
-            if current_pair_idx >= len(paired_list):
+        # 3. Allocate Room by Room
+        for room in active_rooms:
+            total_remaining = sum(len(p["list"]) for p in pools)
+            if total_remaining == 0:
                 break
-
-            cur_xi_pool, cur_xii_pool = paired_list[current_pair_idx]
 
             rows = room.rows or max(1, math.ceil(room.capacity / (room.cols or 6)))
             cols = room.cols or max(1, math.ceil(room.capacity / rows))
@@ -266,70 +154,100 @@ class AllocationEngine:
             grid: List[List[Optional[Dict[str, Any]]]] = [[None for _ in range(cols)] for _ in range(rows)]
             assigned_seats: List[schemas.SeatAssignment] = []
 
+            # Helpers to identify grade level
+            def is_xi(g: str) -> bool:
+                u = g.upper()
+                return "XI" in u and "XII" not in u
+
+            def is_xii(g: str) -> bool:
+                return "XII" in g.upper()
+
+            available_pools = [p for p in pools if len(p["list"]) > 0]
+            if not available_pools:
+                break
+
+            has_xi = any(is_xi(p["grade"]) for p in available_pools)
+            has_xii = any(is_xii(p["grade"]) for p in available_pools)
+
+            even_cells = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r + c) % 2 == 0)
+            odd_cells = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r + c) % 2 == 1)
+            even_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 0))
+            odd_row_seats = sum(1 for r in range(rows) for c in range(cols) if (r * cols + c < capacity) and (r % 2 == 1))
+
             taken_a: List[Dict[str, Any]] = []
             taken_b: List[Dict[str, Any]] = []
 
-            has_xi_in_pair = bool(cur_xi_pool and len(cur_xi_pool["list"]) > 0)
-            has_xii_in_pair = bool(cur_xii_pool and len(cur_xii_pool["list"]) > 0)
+            strat = getattr(options, "strategy", "split_50_50") or "split_50_50"
 
-            if has_xi_in_pair and has_xii_in_pair:
-                # Exact 50/50 seat split: 15 Class 11 and 15 Class 12 for a 30-capacity room
-                target_a = math.ceil(capacity / 2)
-                target_b = capacity - target_a
+            if has_xi and has_xii:
+                # Strictly 50/50 split of 11th and 12th according to class strength and room capacity:
+                # e.g. 15 XI & 15 XII for 30 capacity, 17/17 for 34, 14/14 for 28, 17/16 for 33
+                # Aligned with room grid parity so neighbor conflicts are 0
+                if odd_cells > even_cells:
+                    target_a = odd_cells
+                    target_b = even_cells
+                else:
+                    target_a = even_cells
+                    target_b = odd_cells
 
-                # Take up to target_a strictly from this single XI section
-                take_a = min(target_a, len(cur_xi_pool["list"]))
-                taken_a = cur_xi_pool["list"][:take_a]
-                del cur_xi_pool["list"][:take_a]
+                # Sequential filling class-by-class for Grade 11: all students come from the same class
+                for p in pools:
+                    if is_xi(p["grade"]) and p["list"]:
+                        need = target_a - len(taken_a)
+                        if need <= 0:
+                            break
+                        take = min(need, len(p["list"]))
+                        taken_a.extend(p["list"][:take])
+                        del p["list"][:take]
 
-                # Take up to target_b strictly from this single XII section
-                take_b = min(target_b, len(cur_xii_pool["list"]))
-                taken_b = cur_xii_pool["list"][:take_b]
-                del cur_xii_pool["list"][:take_b]
+                # Sequential filling class-by-class for Grade 12: all students come from the same class
+                for p in pools:
+                    if is_xii(p["grade"]) and p["list"]:
+                        need = target_b - len(taken_b)
+                        if need <= 0:
+                            break
+                        take = min(need, len(p["list"]))
+                        taken_b.extend(p["list"][:take])
+                        del p["list"][:take]
 
-                # If one section in this pair had fewer than target, allow the other section of the same pair to fill room
-                rem_capacity = capacity - (len(taken_a) + len(taken_b))
-                if rem_capacity > 0 and cur_xi_pool["list"]:
-                    extra_a = min(rem_capacity, len(cur_xi_pool["list"]))
-                    taken_a.extend(cur_xi_pool["list"][:extra_a])
-                    del cur_xi_pool["list"][:extra_a]
-                    rem_capacity = capacity - (len(taken_a) + len(taken_b))
+                # Leftovers if any slots remain unfilled
+                needed_more = capacity - (len(taken_a) + len(taken_b))
+                if needed_more > 0:
+                    for p in pools:
+                        if p["list"]:
+                            take = min(needed_more, len(p["list"]))
+                            if is_xi(p["grade"]):
+                                taken_a.extend(p["list"][:take])
+                            else:
+                                taken_b.extend(p["list"][:take])
+                            del p["list"][:take]
+                            needed_more = capacity - (len(taken_a) + len(taken_b))
+                            if needed_more <= 0:
+                                break
+            else:
+                # Fallback to standard 2-pool split if only one grade is in this session
+                primary_pool = available_pools[0]
+                secondary_pool = available_pools[1] if len(available_pools) > 1 else None
+                primary_budget = min(even_cells, len(primary_pool["list"]))
+                secondary_budget = min(capacity - primary_budget, len(secondary_pool["list"])) if secondary_pool else 0
 
-                if rem_capacity > 0 and cur_xii_pool["list"]:
-                    extra_b = min(rem_capacity, len(cur_xii_pool["list"]))
-                    taken_b.extend(cur_xii_pool["list"][:extra_b])
-                    del cur_xii_pool["list"][:extra_b]
+                taken_a = primary_pool["list"][:primary_budget]
+                del primary_pool["list"][:primary_budget]
 
-            elif has_xi_in_pair:
-                take_a = min(capacity, len(cur_xi_pool["list"]))
-                taken_a = cur_xi_pool["list"][:take_a]
-                del cur_xi_pool["list"][:take_a]
+                if secondary_pool and secondary_budget > 0:
+                    taken_b = secondary_pool["list"][:secondary_budget]
+                    del secondary_pool["list"][:secondary_budget]
 
-            elif has_xii_in_pair:
-                take_b = min(capacity, len(cur_xii_pool["list"]))
-                taken_b = cur_xii_pool["list"][:take_b]
-                del cur_xii_pool["list"][:take_b]
-
-            # In case there are a few extra tables, put a few students of another class also
-            rem_capacity = capacity - (len(taken_a) + len(taken_b))
-            if rem_capacity > 0:
-                for next_pair_idx in range(current_pair_idx + 1, len(paired_list)):
-                    if rem_capacity <= 0:
-                        break
-                    nxt_xi, nxt_xii = paired_list[next_pair_idx]
-
-                    if rem_capacity > 0 and nxt_xi and nxt_xi["list"]:
-                        half_rem = math.ceil(rem_capacity / 2) if (nxt_xii and nxt_xii["list"]) else rem_capacity
-                        take_nxt_a = min(half_rem, len(nxt_xi["list"]))
-                        taken_a.extend(nxt_xi["list"][:take_nxt_a])
-                        del nxt_xi["list"][:take_nxt_a]
-                        rem_capacity = capacity - (len(taken_a) + len(taken_b))
-
-                    if rem_capacity > 0 and nxt_xii and nxt_xii["list"]:
-                        take_nxt_b = min(rem_capacity, len(nxt_xii["list"]))
-                        taken_b.extend(nxt_xii["list"][:take_nxt_b])
-                        del nxt_xii["list"][:take_nxt_b]
-                        rem_capacity = capacity - (len(taken_a) + len(taken_b))
+                needed_more = capacity - (len(taken_a) + len(taken_b))
+                if needed_more > 0:
+                    for p in pools:
+                        if p["list"]:
+                            take = min(needed_more, len(p["list"]))
+                            taken_a.extend(p["list"][:take])
+                            del p["list"][:take]
+                            needed_more = capacity - (len(taken_a) + len(taken_b))
+                            if needed_more <= 0:
+                                break
 
             room_students_to_seat: List[Dict[str, Any]] = taken_a + taken_b
 
@@ -345,31 +263,95 @@ class AllocationEngine:
                     grid[0][c] = front_students[front_idx]
                     front_idx += 1
 
-            # Fill remaining seats desk by desk
-            for r in range(rows):
+            # Place regular candidates based on strategy
+            def would_cause_conflict(r_idx: int, c_idx: int, cand: Dict[str, Any]) -> bool:
+                sub_code = cand["subject"].code
+                cand_grd = cand["student"].grade
+                for nr, nc in [(r_idx - 1, c_idx), (r_idx + 1, c_idx), (r_idx, c_idx - 1), (r_idx, c_idx + 1)]:
+                    if 0 <= nr < rows and 0 <= nc < cols:
+                        n_item = grid[nr][nc]
+                        if n_item and n_item["subject"].code == sub_code:
+                            if is_xi(n_item["student"].grade) != is_xi(cand_grd):
+                                continue
+                            return True
+                return False
+
+            if strat == "row_alternate" and not (has_xi and has_xii):
+                for r in range(rows):
+                    for c in range(cols):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if r % 2 == 0:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
+            elif strat == "column_alternate":
                 for c in range(cols):
-                    seat_idx = r * cols + c
-                    if seat_idx >= capacity:
-                        continue
-                    if grid[r][c] is not None:
-                        continue
+                    for r in range(rows):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if c % 2 == 0:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
+            else:
+                # Default / split_50_50 / checkerboard: Paired-bench 50/50 alternating
+                xi_parity = 1 if odd_cells > even_cells else 0
+                for r in range(rows):
+                    for c in range(cols):
+                        seat_idx = r * cols + c
+                        if seat_idx >= capacity or grid[r][c] is not None:
+                            continue
+                        if (r + c) % 2 == xi_parity:
+                            if regular_a:
+                                grid[r][c] = regular_a.pop(0)
+                            elif regular_b and not would_cause_conflict(r, c, regular_b[0]):
+                                grid[r][c] = regular_b.pop(0)
+                        else:
+                            if regular_b:
+                                if not would_cause_conflict(r, c, regular_b[0]):
+                                    grid[r][c] = regular_b.pop(0)
+                            elif regular_a and not would_cause_conflict(r, c, regular_a[0]):
+                                grid[r][c] = regular_a.pop(0)
 
-                    # Alternating pattern:
-                    if options.strategy == "column_alternate":
-                        is_slot_a = (c % 2 == 0)
-                    elif options.strategy == "row_alternate":
-                        is_slot_a = (r % 2 == 0)
-                    else:
-                        # checkerboard / split_50_50 default:
-                        # (r + c) % 2 == 0 provides alternating desks horizontally & vertically
-                        is_slot_a = ((r + c) % 2 == 0)
-
-                    if is_slot_a:
-                        chosen = regular_a.pop(0) if regular_a else (regular_b.pop(0) if regular_b else None)
-                    else:
-                        chosen = regular_b.pop(0) if regular_b else (regular_a.pop(0) if regular_a else None)
-
-                    grid[r][c] = chosen
+            # Place any remaining candidates in non-conflicting available seats
+            for q in [regular_a, regular_b]:
+                while q:
+                    cand = q.pop(0)
+                    placed = False
+                    for r in range(rows):
+                        for c in range(cols):
+                            if r * cols + c < capacity and grid[r][c] is None and not would_cause_conflict(r, c, cand):
+                                grid[r][c] = cand
+                                placed = True
+                                break
+                        if placed:
+                            break
+                    if not placed:
+                        for r in range(rows):
+                            for c in range(cols):
+                                if r * cols + c < capacity and grid[r][c] is None:
+                                    grid[r][c] = cand
+                                    placed = True
+                                    break
+                            if placed:
+                                break
 
             # Check neighbor conflicts and build SeatAssignment objects
             grade_dist: Dict[str, int] = {}
