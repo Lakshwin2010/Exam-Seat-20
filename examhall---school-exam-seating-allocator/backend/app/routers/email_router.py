@@ -718,7 +718,7 @@ def generate_class_dispatch_pdf(grade_class: str, session_id: Optional[str], db:
     instructions = Paragraph(
         "<b>Important Instructions for Students:</b> 1. Report to your allotted exam room at least 15 minutes before the exam commences. "
         "2. Verify your roll number and name on the desk label before sitting. "
-        "3. Strict alternating seating is maintained to ensure exam integrity. 4. Bring school ID and required stationery.",
+        "3. Bring school ID and required stationery.",
         instruction_style
     )
     story.append(instructions)
@@ -841,8 +841,7 @@ def get_whatsapp_broadcast_notices(
             "⚠️ *Important Instructions:*",
             "1. Report to your assigned room 15 minutes before exam time.",
             "2. Verify your roll number and name on your desk sticker.",
-            "3. Strict 50/50 alternating seating is enforced across rooms.",
-            "4. Bring your school ID card and required stationery.",
+            "3. Bring your school ID card and required stationery.",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ])
 
