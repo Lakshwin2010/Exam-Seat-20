@@ -7,9 +7,9 @@ import {
   SeatingPlan 
 } from '../types';
 
-const API_BASE = typeof window !== 'undefined' && window.location.port === '8000' 
+const API_BASE = typeof window !== 'undefined'
   ? '/api' 
-  : 'http://localhost:8000/api';
+  : 'http://localhost:8001/api';
 
 export interface SourceFileSummary {
   fileName: string;

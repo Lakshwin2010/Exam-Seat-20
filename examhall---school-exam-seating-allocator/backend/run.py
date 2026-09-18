@@ -1,3 +1,4 @@
+import os
 import uvicorn
 import sys
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 if __name__ == "__main__":
-    print("Starting ExamHall Seating Allocator & Student Monitoring Backend...")
-    print("API Documentation available at: http://localhost:8000/docs")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("BACKEND_PORT", 8001))
+    print(f"Starting ExamHall Seating Allocator & Student Monitoring Backend on port {port}...")
+    print(f"API Documentation available at: http://localhost:{port}/docs")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
